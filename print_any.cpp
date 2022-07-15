@@ -36,3 +36,12 @@ int main() {
     for (auto&& elem : any_vec)
         printAny(elem);
 }
+
+/* OUTPUT
+std::any_cast<std::string>(any) jhasdhjkashjk
+std::any_cast<char>(any)        &
+std::any_cast<double>(any)      3.14159
+std::any_cast<float>(any)       0.25
+std::any_cast<int32_t>(any)     125
+std::any_cast<uint64_t>(any)    18446744073709551615
+*/
