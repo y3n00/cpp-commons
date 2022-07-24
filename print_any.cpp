@@ -1,26 +1,19 @@
-#include <any>
-#include <iostream>
-#include <limits>
-#include <string>
-#include <vector>
-
-#define print(x) \
-    std::cout << #x << '\t' << x << '\n';
+#include "default.hpp"
 
 inline static void printAny(const std::any& any) {
-#define PRINT_IF(T)              \
+#define PRINT_AS(T)              \
     if (any.type() == typeid(T)) \
-        print(std::any_cast<T>(any));
+        PRINT(std::any_cast<T>(any));
 
-    PRINT_IF(char);
-    PRINT_IF(float);
-    PRINT_IF(double);
-    PRINT_IF(int32_t);
-    PRINT_IF(int64_t);
-    PRINT_IF(uint64_t);
-    PRINT_IF(std::string);
+    PRINT_AS(char);
+    PRINT_AS(float);
+    PRINT_AS(double);
+    PRINT_AS(int32_t);
+    PRINT_AS(int64_t);
+    PRINT_AS(uint64_t);
+    PRINT_AS(std::string);
 
-#undef PRINT_IF
+#undef PRINT_AS
 }
 
 int main() {
