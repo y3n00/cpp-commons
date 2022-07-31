@@ -5,11 +5,10 @@
 void foo(const char* title, size_t maxValue) {
     Timer timer(title);
     Random rand;
-    size_t counter{};
     std::stringstream sstr;
     for (size_t k{}; k <= 15; ++k) {
-        auto randValue{rand.getRand(maxValue)};
-        sstr << (counter += randValue) << ' ';
+        auto randValue{rand(maxValue)};
+        sstr << randValue << ' ';
         std::this_thread::sleep_for(std::chrono::milliseconds(randValue));
     }
     std::cerr << sstr.str() << '\n';
@@ -17,6 +16,10 @@ void foo(const char* title, size_t maxValue) {
 
 int main() {
     Timer timer("MAIN");
+    // foo("T1", 50);
+    // foo("T2", 100);
+    // foo("T3", 500);
+
     std::thread t1(foo, "T1", 50);
     std::thread t2(foo, "T2", 100);
     std::thread t3(foo, "T3", 500);

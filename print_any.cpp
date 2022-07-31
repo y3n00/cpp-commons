@@ -17,7 +17,7 @@ inline static void printAny(const std::any& any) {
 }
 
 int main() {
-    const static std::vector<std::any> any_vec{
+    static const std::array<std::any, 6> any_arr{
         std::string("jhasdhjkashjk"),
         '&',
         3.1415926535,
@@ -26,7 +26,7 @@ int main() {
         std::numeric_limits<uint64_t>::max(),
     };
 
-    for (auto&& elem : any_vec)
+    for (auto&& elem : any_arr)
         printAny(elem);
 }
 
