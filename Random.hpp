@@ -3,28 +3,25 @@
 
 class Random {
    private:
-    std::random_device rd;
-    std::mt19937 gen;
+    static std::mt19937 gen;
 
    public:
-    Random() : gen{rd()} {}
-
+    Random() = default;
     Random(Random&&) = delete;
     Random(const Random&) = delete;
     Random& operator=(const Random&) = delete;
 
-    int64_t operator()() {
-        std::uniform_int_distribution rand;
-        return rand(gen);
+    static int64_t getRand() {
+        return std::uniform_int_distribution()(gen);
     }
 
-    uint64_t operator()(uint64_t maxN) {
-        std::uniform_int_distribution rand(uint64_t(0), maxN);
-        return rand(gen);
+    static int64_t getRand(uint64_t maxN) {
+        return std::uniform_int_distribution(uint64_t(0), maxN)(gen);
     }
 
-    int64_t operator()(int64_t minN, int64_t maxN) {
-        std::uniform_int_distribution rand(minN, maxN);
-        return rand(gen);
+    static int64_t getRand(int64_t minN, int64_t maxN) {
+        return std::uniform_int_distribution(minN, maxN)(gen);
     }
 };
+
+std::mt19937 Random::gen{std::random_device{}()};

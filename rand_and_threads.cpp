@@ -2,12 +2,12 @@
 
 #include "default.hpp"
 
-void foo(const char* title, size_t maxValue) {
+void foo(std::string_view title, size_t maxValue) {
     Timer timer(title);
-    Random rand;
+
     std::stringstream sstr;
     for (size_t k{}; k <= 15; ++k) {
-        auto randValue{rand(maxValue)};
+        auto randValue{Random::getRand(maxValue)};
         sstr << randValue << ' ';
         std::this_thread::sleep_for(std::chrono::milliseconds(randValue));
     }
@@ -16,9 +16,6 @@ void foo(const char* title, size_t maxValue) {
 
 int main() {
     Timer timer("MAIN");
-    // foo("T1", 50);
-    // foo("T2", 100);
-    // foo("T3", 500);
 
     std::thread t1(foo, "T1", 50);
     std::thread t2(foo, "T2", 100);
@@ -30,15 +27,15 @@ int main() {
 }
 
 /* POSSIBLE OUTPUT
-[MAIN]
-[T1]
-[T2]
-[T3]
-22 61 71 98 132 136 165 209 218 258 285 315 329 371 404 407
-[T1] Time took: 430ms
-67 167 180 267 276 372 389 468 497 563 625 651 674 747 814 826
-[T2] Time took: 859ms
-97 103 327 566 851 1006 1265 1266 1752 2176 2433 2693 2767 3003 3503 3540
-[T3] Time took: 3571ms
-[MAIN] Time took: 3571ms
+[MAIN] is started
+[T1] is started
+[T3] is started
+[T2] is started
+36 1 5 40 45 38 45 48 23 50 34 11 44 47 31 11
+[T1] Time took: 540ms
+91 89 12 77 51 69 85 61 95 79 47 54 51 59 12 45
+[T2] Time took: 1012ms
+246 271 232 437 116 407 238 104 41 280 158 374 431 150 80 343
+[T3] Time took: 3950ms
+[MAIN] Time took: 3951ms
 */

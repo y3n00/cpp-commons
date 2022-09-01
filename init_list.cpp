@@ -1,37 +1,43 @@
 #include "default.hpp"
 
 template <typename T>
-class Test {
+class TestInitList {
    private:
-    T* T_ptr;
+    std::unique_ptr<T[]> T_ptr;
     size_t size;
 
    public:
-    Test() = delete;
-    Test(Test&) = delete;
-    Test(Test&&) = delete;
+    TestInitList() = delete;
+    TestInitList(TestInitList&&) = delete;
+    TestInitList(const TestInitList&) = delete;
 
-    Test(std::initializer_list<T> il)
+    TestInitList(std::initializer_list<T>&& il) noexcept
         : T_ptr{new T[il.size()]},
           size{il.size()} {
         size_t counter{};
         for (auto iter = il.begin(); iter != il.end(); ++iter)
-            T_ptr[counter++] = *iter;
+            T_ptr[counter++] = std::move(*iter);
     }
 
-    void Print() const {
-        for (size_t idx{}; idx < size; ++idx)
-            std::cout << T_ptr[idx] << '\n';
+    friend void Print(const TestInitList<T>& TIL) {
+        for (size_t idx{}; idx < TIL.size; ++idx)
+            std::cout << TIL.T_ptr[idx] << '\n';
     }
 
-    ~Test() noexcept { delete[] T_ptr; }
+    ~TestInitList() noexcept = default;
 };
 
 int main() {
-    Test<int> t_int{10, 20, 40, 50};
-    t_int.Print();
-    Test<std::string> t_str{"sadadsa", "sadasdasd"};
-    t_str.Print();
+    struct SSS {
+        SSS() { std::puts("ctor"); }
+        ~SSS() noexcept { std::puts("dector"); }
+    };
+    TestInitList<int> t_int{10, 20, 40, 50};
+    TestInitList<std::string> t_str{"sadadsa", "sadasdasd"};
+    TestInitList<SSS> t_sss{{}, {}, {}};
+
+    Print(t_int);
+    Print(t_str);
 }
 
 /* OUTPUT
