@@ -2,20 +2,20 @@
 
 #include "default.hpp"
 
-void foo(std::string_view title, size_t maxValue) {
-    Timer timer(title);
+void foo(const std::string& title, size_t maxValue) {
+    Timer::SimpleTimer<Timer::ms> timer(title);
 
     std::stringstream sstr;
     for (size_t k{}; k <= 15; ++k) {
         auto randValue{Random::getRand(maxValue)};
         sstr << randValue << ' ';
-        std::this_thread::sleep_for(std::chrono::milliseconds(randValue));
+        std::this_thread::sleep_for(Timer::ms(randValue));
     }
     std::cerr << sstr.str() << '\n';
 }
 
 int main() {
-    Timer timer("MAIN");
+    Timer::SimpleTimer<Timer::ms> timer("MAIN");
 
     std::thread t1(foo, "T1", 50);
     std::thread t2(foo, "T2", 100);
