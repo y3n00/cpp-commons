@@ -18,9 +18,3 @@
 
 #define PRINT(x) \
     std::cout << #x << '\t' << x << '\n';
-
-// TODO FIX
-#define PRINT_BITS(x)                                  \
-    std::cout << #x << '\t' << x << '\t'               \
-              << std::bitset<sizeof(x) * 8>{x} << '\t' \
-              << std::hex << x << std::dec << '\n';

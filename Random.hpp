@@ -1,5 +1,5 @@
 #pragma once
-#include "default.hpp"
+#include <random>
 
 class Random {
    private:
