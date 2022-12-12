@@ -4,8 +4,8 @@
 #include <sstream>
 #include <string>
 
-inline static const std::string addBrackets(const std::string& str) {
-    return {'[' + str + ']'};
+static inline auto addBrackets(const std::string& str) {
+    return '[' + str + ']';
 }
 
 namespace Timer {

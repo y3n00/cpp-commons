@@ -1,9 +1,10 @@
 #include "default.hpp"
 
 inline static void printAny(const std::any& any) {
-#define PRINT_AS(T)              \
-    if (any.type() == typeid(T)) \
-        PRINT(std::any_cast<T>(any));
+#define PRINT_AS(T)                   \
+    if (any.type() == typeid(T))      \
+        PRINT(std::any_cast<T>(any)); \
+    return;
 
     PRINT_AS(char);
     PRINT_AS(float);

@@ -11,7 +11,7 @@ void foo(const std::string& title, size_t maxValue) {
         sstr << randValue << ' ';
         std::this_thread::sleep_for(Timer::ms(randValue));
     }
-    std::cerr << sstr.str() << '\n';
+    PRINT(sstr.str());
 }
 
 int main() {
