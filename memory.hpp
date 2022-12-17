@@ -99,7 +99,7 @@ template <typename ptrT, typename SearchType>
 class dynamicScan {
    public:
     dynamicScan(SearchIn<ptrT> si, SearchType value)
-        : _si{si}, _v{value} {
+        : _v{value}, _si{si} {
         const size_t size = _si._blockSize / sizeof(SearchType);
         SearchType* vts = reinterpret_cast<SearchType*>(_si._base);
 
@@ -139,9 +139,9 @@ class dynamicScan {
     }
 
    private:
-    std::vector<Result<SearchType>> _results;
-    SearchIn<ptrT> _si;
     SearchType _v;
+    SearchIn<ptrT> _si;
+    std::vector<Result<SearchType>> _results;
 };
 
 }  // namespace memory

@@ -13,15 +13,18 @@ class Random {
     Random(const Random&) = delete;
     Random& operator=(const Random&) = delete;
 
-    static T getRand() {
+    [[nodiscard]] static T
+    getRand() {
         return std::uniform_int_distribution()(gen);
     }
 
-    static T getRand(T maxN) {
+    [[nodiscard]] static T
+    getRand(T maxN) {
         return std::uniform_int_distribution(uint64_t(0), maxN)(gen);
     }
 
-    static T getRand(T minN, T maxN) {
+    [[nodiscard]] static T
+    getRand(T minN, T maxN) {
         return std::uniform_int_distribution(minN, maxN)(gen);
     }
 };
@@ -40,15 +43,18 @@ class Random {
     Random(const Random&) = delete;
     Random& operator=(const Random&) = delete;
 
-    static auto getRand() {
+    [[nodiscard]] static auto
+    getRand() {
         return std::uniform_int_distribution()(gen);
     }
 
-    static auto getRand(uint64_t maxN) {
+    [[nodiscard]] static auto
+    getRand(uint64_t maxN) {
         return std::uniform_int_distribution(uint64_t(0), maxN)(gen);
     }
 
-    static auto getRand(int64_t minN, int64_t maxN) {
+    [[nodiscard]] static auto
+    getRand(int64_t minN, int64_t maxN) {
         return std::uniform_int_distribution(minN, maxN)(gen);
     }
 };
