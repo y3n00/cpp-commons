@@ -10,18 +10,27 @@
 #define PAD(size) std::byte PAD_NAME(__LINE__)[size];
 
 namespace memory {
-template <typename T>
+template <typename ptrT>
 struct SearchIn {
-    T* _base;
+    ptrT* _base;
     size_t _blockSize;
 };
 
-template <typename T, typename U>
-void printAs(T* base) {
-    constexpr size_t size = sizeof(T) / sizeof(U);
-    U* vts = reinterpret_cast<U*>(base);
+template <typename ptrT>
+struct Result {
+    ptrT* _ptr;
+    ptrdiff_t _offset;
+    auto getValue() const {
+        return *_ptr;
+    }
+};
 
-    for (auto idx = 0; idx < size; idx++) {
+template <typename ptrT, typename SearchType>
+void printAs(SearchIn<ptrT> si) {
+    const size_t size = si._blockSize / sizeof(SearchType);
+    SearchType* vts = reinterpret_cast<SearchType*>(si._base);
+
+    for (auto idx = 0; idx < si._blockSize; idx++) {
         fmt::print("{:#x}\t", vts[idx]);
         if (idx % 16 == 0 && idx != 0)
             fmt::print("\n");
@@ -29,132 +38,110 @@ void printAs(T* base) {
     fmt::print("\n\n");
 }
 
-template <typename T, typename U>
-[[nodiscard]] U* findAddress(T* base, U valueToSearch) {
-    constexpr size_t size = sizeof(T) / sizeof(U);
-    U* vts = reinterpret_cast<U*>(base);
+template <typename ptrT, typename SearchType>
+[[nodiscard]] Result<SearchType> find(SearchIn<ptrT> si, SearchType value) {
+    const size_t size = si._blockSize / sizeof(SearchType);
+    SearchType* vts = reinterpret_cast<SearchType*>(si._base);
 
-    U* retPtr;
+    Result<SearchType> r;
     for (auto idx = 0; idx < size; idx++) {
-        if (vts[idx] == valueToSearch) {
-            retPtr = (vts + idx);
+        if (vts[idx] == value) {
+            r = {&vts[idx], idx};
             break;
         }
     }
-    return retPtr;
+    return r;
 }
 
-template <typename T, typename U>
-[[nodiscard]] U* findAddress(SearchIn<T> si, U valueToSearch) {
-    const size_t size = si._blockSize / sizeof(U);
-    U* vts = reinterpret_cast<U*>(si._base);
-
-    U* retPtr;
-    for (auto idx = 0; idx < size; idx++) {
-        if (vts[idx] == valueToSearch) {
-            retPtr = (vts + idx);
-            break;
-        }
-    }
-    return retPtr;
-}
-
-template <typename T, typename U>
-[[nodiscard]] auto findAll(SearchIn<T> si, U valueToSearch) {
-    std::vector<U*> pointers;
-    const size_t size = si._blockSize / sizeof(U);
-    U* vts = reinterpret_cast<U*>(si._base);
+template <typename ptrT, typename SearchType>
+[[nodiscard]] auto findAll(SearchIn<ptrT> si, SearchType value) {
+    std::vector<Result<SearchType>> pointers;
+    const size_t size = si._blockSize / sizeof(SearchType);
+    SearchType* vts = reinterpret_cast<SearchType*>(si._base);
 
     for (auto idx = 0; idx < size; idx++)
-        if (vts[idx] == valueToSearch)
-            pointers.push_back(vts + idx);
+        if (vts[idx] == value)
+            pointers.push_back({&vts[idx], idx});
 
     return pointers;
 }
 
-template <typename T>
-[[nodiscard]] auto* findAddress(T* base, std::string_view valueToSearch) {
-    constexpr size_t size = valueToSearch.size();
-    char* vts = reinterpret_cast<char*>(base);
+template <typename ptrT>
+[[nodiscard]] auto* find(SearchIn<ptrT> si, std::string_view value) {
+    constexpr size_t size = value.size();
+    char* vts = reinterpret_cast<char*>(si._base);
+    Result<char*> r;
     char* retPtr;
 
     for (auto idx = 0; idx < size; idx++) {
-        if (std::string_view{vts[idx], size} == valueToSearch) {
-            retPtr = (vts + idx);
+        if (std::string_view{vts[idx], size} == value) {
+            r = {&vts[idx], idx};
             break;
         }
     }
-    return retPtr;
+    return r;
 }
 
-template <typename T, typename U>
-U findValueWithOffset(T* base, size_t offset) {
-    offset /= sizeof(U);
-    auto ptr = reinterpret_cast<U*>(base);
-    return *(ptr + offset);
+template <typename ptrT, typename SearchType>
+SearchType findValueWithOffset(ptrT* base, size_t offset) {
+    offset /= sizeof(SearchType);
+    auto ptr = reinterpret_cast<SearchType*>(base);
+    return ptr[offset];
 }
 
-template <typename T, typename U>
-[[nodiscard]] ptrdiff_t getOffset(T* t, U* u) {
+template <typename ptrT, typename SearchType>
+[[nodiscard]] ptrdiff_t getOffset(ptrT* t, SearchType* u) {
     return ptrdiff_t(
         reinterpret_cast<uint8_t*>(u) - reinterpret_cast<uint8_t*>(t));
 }
 
-template <typename T, typename U>
+template <typename ptrT, typename SearchType>
 class dynamicScan {
    public:
-    dynamicScan(SearchIn<T> si, U valueToSearch)
-        : _si{si}, _v{valueToSearch} {
-        const size_t size = _si._blockSize / sizeof(U);
-        U* vts = reinterpret_cast<U*>(_si._base);
+    dynamicScan(SearchIn<ptrT> si, SearchType value)
+        : _si{si}, _v{value} {
+        const size_t size = _si._blockSize / sizeof(SearchType);
+        SearchType* vts = reinterpret_cast<SearchType*>(_si._base);
 
         for (auto idx = 0; idx < size; idx++)
             if (vts[idx] == _v)
-                _pointers.push_back(vts + idx);
+                _results.push_back({vts + idx, idx});
     }
 
-    void nextScan(std::function<bool(U, U)> compare) {
-        std::vector<U*> newVec;
+    void nextScan(std::function<bool(SearchType, SearchType)> compare) {
+        decltype(_results) newVec;
 
-        for (auto& p : _pointers)
-            if (compare(*p, _v))
+        for (auto& p : _results) {
+            if (compare(p.getValue(), _v))
                 newVec.push_back(p);
-
-        newVec.swap(_pointers);
+        }
+        newVec.swap(_results);
     }
 
-    void nextScan(U newValue) {
-        std::vector<U*> newVec;
+    void nextScan(SearchType newValue) {
+        decltype(_results) newVec;
         _v = newValue;
 
-        for (auto& p : _pointers)
-            if (*p == _v)
+        for (auto& p : _results)
+            if (p.getValue() == _v)
                 newVec.push_back(p);
 
-        newVec.swap(_pointers);
+        newVec.swap(_results);
     }
 
     [[nodiscard]] auto getResultVec() {
-        return _pointers;
-    }
-
-    [[nodiscard]] auto getOffsetsVec() {
-        std::vector<size_t> offsets;
-        for (auto& v : _pointers)
-            offsets.emplace_back(std::move(getOffset(_si._base, v)));
-
-        return offsets;
+        return _results;
     }
 
     void printResults() {
-        for (const auto& v : _pointers)
-            std::cout << "base(" << _si._base << ") + " << getOffset(_si._base, v) << " = " << *v << '\n';
+        for (auto& v : _results)
+            std::cout << "base(" << _si._base << ") + " << getOffset(_si._base, v._ptr) << " = " << v.getValue() << '\n';
     }
 
    private:
-    std::vector<U*> _pointers;
-    SearchIn<T> _si;
-    U _v;
+    std::vector<Result<SearchType>> _results;
+    SearchIn<ptrT> _si;
+    SearchType _v;
 };
 
 }  // namespace memory
