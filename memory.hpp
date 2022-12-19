@@ -9,106 +9,125 @@
 #define PAD_NAME(n) CONCAT(pad, n)
 #define PAD(size) std::byte PAD_NAME(__LINE__)[size];
 
+/*
+TODO to fix memory::findString
+*/
+
 namespace memory {
 template <typename ptrT>
 struct SearchIn {
-    ptrT* _base;
-    size_t _blockSize;
+    SearchIn<ptrT>(ptrT* ptr, size_t size)
+        : _base{ptr}, _rangeSize{size} {}
+
+    SearchIn<ptrT>(ptrT* ptr)
+        : _base{ptr}, _rangeSize{sizeof(ptrT)} {}
+
+    ptrT* _base = nullptr;
+    size_t _rangeSize = 0;
 };
 
 template <typename ptrT>
 struct Result {
-    ptrT* _ptr;
-    ptrdiff_t _offset;
-    auto getValue() const {
+    ptrT* _ptr = nullptr;
+    size_t _offset = 0;
+
+    [[nodiscard]] ptrT
+    getValue() const {
         return *_ptr;
     }
 };
 
-template <typename ptrT, typename SearchType>
+template <typename ptrT, typename PrintType>
 void printAs(SearchIn<ptrT> si) {
-    const size_t size = si._blockSize / sizeof(SearchType);
-    SearchType* vts = reinterpret_cast<SearchType*>(si._base);
+    const size_t size = si._rangeSize / sizeof(PrintType);
 
-    for (auto idx = 0; idx < si._blockSize; idx++) {
-        fmt::print("{:#x}\t", vts[idx]);
+    PrintType* castedRange = reinterpret_cast<PrintType*>(si._base);
+
+    for (size_t idx = 0; idx < si._rangeSize; idx++) {
+        fmt::print("{:#x}\t", castedRange[idx]);
         if (idx % 16 == 0 && idx != 0)
             fmt::print("\n");
     }
     fmt::print("\n\n");
 }
 
-template <typename ptrT, typename SearchType>
-[[nodiscard]] Result<SearchType> find(SearchIn<ptrT> si, SearchType value) {
-    const size_t size = si._blockSize / sizeof(SearchType);
-    SearchType* vts = reinterpret_cast<SearchType*>(si._base);
+template <typename ptrT, typename TypeToSearch>
+[[nodiscard]] Result<TypeToSearch>
+find(SearchIn<ptrT> si, TypeToSearch value) {
+    const size_t size = si._rangeSize / sizeof(TypeToSearch);
+    TypeToSearch* castedRange = reinterpret_cast<TypeToSearch*>(si._base);
 
-    Result<SearchType> r;
-    for (auto idx = 0; idx < size; idx++) {
-        if (vts[idx] == value) {
-            r = {&vts[idx], idx};
+    Result<TypeToSearch> r;
+    for (size_t idx = 0; idx < size; idx++) {
+        if (castedRange[idx] == value) {
+            r = {&castedRange[idx], idx};
             break;
         }
     }
     return r;
 }
 
-template <typename ptrT, typename SearchType>
-[[nodiscard]] auto findAll(SearchIn<ptrT> si, SearchType value) {
-    std::vector<Result<SearchType>> pointers;
-    const size_t size = si._blockSize / sizeof(SearchType);
-    SearchType* vts = reinterpret_cast<SearchType*>(si._base);
+template <typename ptrT, typename TypeToSearch>
+[[nodiscard]] std::vector<Result<TypeToSearch>>
+findAll(SearchIn<ptrT> si, TypeToSearch value) {
+    std::vector<Result<TypeToSearch>> pointers;
+    const size_t size = si._rangeSize / sizeof(TypeToSearch);
+    TypeToSearch* castedRange = reinterpret_cast<TypeToSearch*>(si._base);
 
-    for (auto idx = 0; idx < size; idx++)
-        if (vts[idx] == value)
-            pointers.push_back({&vts[idx], idx});
+    for (size_t idx = 0; idx < size; idx++)
+        if (castedRange[idx] == value)
+            pointers.push_back({&castedRange[idx], idx});
 
     return pointers;
 }
 
+//! DOESNT WORK
 template <typename ptrT>
-[[nodiscard]] auto* find(SearchIn<ptrT> si, std::string_view value) {
-    constexpr size_t size = value.size();
-    char* vts = reinterpret_cast<char*>(si._base);
-    Result<char*> r;
-    char* retPtr;
+[[nodiscard]] Result<char*>
+findString(SearchIn<ptrT> si, std::string value) {
+    const size_t size = si._rangeSize;
+    auto* castedRange = reinterpret_cast<char*>(si._base);
 
-    for (auto idx = 0; idx < size; idx++) {
-        if (std::string_view{vts[idx], size} == value) {
-            r = {&vts[idx], idx};
+    Result<char*> r;
+    for (size_t idx = 0; idx < size; idx++) {
+        char* charPtr = (castedRange + idx);
+        if (std::string_view{charPtr, value.size()} == value) {
+            std::cout << "find at " << idx << '\n';
+            r = {&charPtr, idx};
             break;
         }
     }
     return r;
 }
 
-template <typename ptrT, typename SearchType>
-SearchType findValueWithOffset(ptrT* base, size_t offset) {
-    offset /= sizeof(SearchType);
-    auto ptr = reinterpret_cast<SearchType*>(base);
+template <typename ptrT, typename TypeToSearch>
+[[nodiscard]] TypeToSearch
+findValueWithOffset(ptrT* base, size_t offset) {
+    offset /= sizeof(TypeToSearch);
+    auto ptr = reinterpret_cast<TypeToSearch*>(base);
     return ptr[offset];
 }
 
-template <typename ptrT, typename SearchType>
-[[nodiscard]] ptrdiff_t getOffset(ptrT* t, SearchType* u) {
-    return ptrdiff_t(
-        reinterpret_cast<uint8_t*>(u) - reinterpret_cast<uint8_t*>(t));
+template <typename T, typename U>
+[[nodiscard]] ptrdiff_t
+getOffset(T* t, U* u) {
+    return reinterpret_cast<std::byte*>(u) - reinterpret_cast<std::byte*>(t);
 }
 
-template <typename ptrT, typename SearchType>
+template <typename ptrT, typename TypeToSearch>
 class dynamicScan {
    public:
-    dynamicScan(SearchIn<ptrT> si, SearchType value)
+    dynamicScan(SearchIn<ptrT> si, TypeToSearch value)
         : _v{value}, _si{si} {
-        const size_t size = _si._blockSize / sizeof(SearchType);
-        SearchType* vts = reinterpret_cast<SearchType*>(_si._base);
+        const size_t size = _si._rangeSize / sizeof(TypeToSearch);
+        TypeToSearch* castedRange = reinterpret_cast<TypeToSearch*>(_si._base);
 
-        for (auto idx = 0; idx < size; idx++)
-            if (vts[idx] == _v)
-                _results.push_back({vts + idx, idx});
+        for (size_t idx = 0; idx < size; idx++)
+            if (castedRange[idx] == _v)
+                _results.push_back({castedRange + idx, idx});
     }
 
-    void nextScan(std::function<bool(SearchType, SearchType)> compare) {
+    void nextScan(std::function<bool(TypeToSearch, TypeToSearch)> compare) {
         decltype(_results) newVec;
 
         for (auto& p : _results) {
@@ -118,7 +137,7 @@ class dynamicScan {
         newVec.swap(_results);
     }
 
-    void nextScan(SearchType newValue) {
+    void nextScan(TypeToSearch newValue) {
         decltype(_results) newVec;
         _v = newValue;
 
@@ -129,19 +148,25 @@ class dynamicScan {
         newVec.swap(_results);
     }
 
-    [[nodiscard]] auto getResultVec() {
+    [[nodiscard]] std::vector<Result<TypeToSearch>>
+    getResultVec() {
         return _results;
     }
 
     void printResults() {
-        for (auto& v : _results)
-            std::cout << "base(" << _si._base << ") + " << getOffset(_si._base, v._ptr) << " = " << v.getValue() << '\n';
+        if (_results.size()) {
+            std::cout << "base [" << _si._base << "] +\n";
+            for (auto& v : _results) {
+                const ptrdiff_t offset = getOffset(_si._base, v._ptr);
+                std::cout << "\t\t\t" << offset << " = " << v.getValue() << '\n';
+            }
+        }
     }
 
    private:
-    SearchType _v;
+    TypeToSearch _v;
     SearchIn<ptrT> _si;
-    std::vector<Result<SearchType>> _results;
+    std::vector<Result<TypeToSearch>> _results;
 };
 
 }  // namespace memory
