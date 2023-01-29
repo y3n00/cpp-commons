@@ -1,31 +1,24 @@
 #pragma once
-#include <fmt/core.h>
-
 #include <functional>
+#include <iomanip>
+#include <iostream>
+#include <span>
 #include <string_view>
 #include <vector>
+
+#define HEXED(x) \
+    std::hex << std::showbase << x << std::noshowbase << std::dec
 
 #define CONCAT(a, b) a##b
 #define PAD_NAME(n) CONCAT(pad, n)
 #define PAD(size) std::byte PAD_NAME(__LINE__)[size];
 
 /*
-TODO to fix memory::findString
+TODO    to fix memory::findString
+TODO    raplace SearchIn by std::span
 */
 
 namespace memory {
-template <typename ptrT>
-struct SearchIn {
-    SearchIn<ptrT>(ptrT* ptr, size_t size)
-        : _base{ptr}, _rangeSize{size} {}
-
-    SearchIn<ptrT>(ptrT* ptr)
-        : _base{ptr}, _rangeSize{sizeof(ptrT)} {}
-
-    ptrT* _base = nullptr;
-    size_t _rangeSize = 0;
-};
-
 template <typename ptrT>
 struct Result {
     ptrT* _ptr = nullptr;
@@ -37,25 +30,22 @@ struct Result {
     }
 };
 
-template <typename ptrT, typename PrintType>
-void printAs(SearchIn<ptrT> si) {
-    const size_t size = si._rangeSize / sizeof(PrintType);
-
-    PrintType* castedRange = reinterpret_cast<PrintType*>(si._base);
+template <typename PrintType>
+void printAs(std::span<std::byte> bytes) {
+    PrintType* castedRange = reinterpret_cast<PrintType*>(bytes);
 
     for (size_t idx = 0; idx < si._rangeSize; idx++) {
-        fmt::print("{:#x}\t", castedRange[idx]);
+        std::cout << HEXED(castedRange[idx]) << '\t';
         if (idx % 16 == 0 && idx != 0)
-            fmt::print("\n");
+            std::cout << '\n';
     }
-    fmt::print("\n\n");
+    std::cout << "\n\n";
 }
 
-template <typename ptrT, typename TypeToSearch>
+template <typename TypeToSearch>
 [[nodiscard]] Result<TypeToSearch>
-find(SearchIn<ptrT> si, TypeToSearch value) {
-    const size_t size = si._rangeSize / sizeof(TypeToSearch);
-    TypeToSearch* castedRange = reinterpret_cast<TypeToSearch*>(si._base);
+find(std::span<std::byte> bytes, TypeToSearch value) {
+    TypeToSearch* castedRange = reinterpret_cast<TypeToSearch*>(bytes);
 
     Result<TypeToSearch> r;
     for (size_t idx = 0; idx < size; idx++) {
@@ -67,12 +57,11 @@ find(SearchIn<ptrT> si, TypeToSearch value) {
     return r;
 }
 
-template <typename ptrT, typename TypeToSearch>
+template <typename TypeToSearch>
 [[nodiscard]] std::vector<Result<TypeToSearch>>
-findAll(SearchIn<ptrT> si, TypeToSearch value) {
+findAll(std::span<std::byte> bytes, TypeToSearch value) {
     std::vector<Result<TypeToSearch>> pointers;
-    const size_t size = si._rangeSize / sizeof(TypeToSearch);
-    TypeToSearch* castedRange = reinterpret_cast<TypeToSearch*>(si._base);
+    TypeToSearch* castedRange = reinterpret_cast<TypeToSearch*>(bytes);
 
     for (size_t idx = 0; idx < size; idx++)
         if (castedRange[idx] == value)
@@ -84,12 +73,11 @@ findAll(SearchIn<ptrT> si, TypeToSearch value) {
 //! DOESNT WORK
 template <typename ptrT>
 [[nodiscard]] Result<char*>
-findString(SearchIn<ptrT> si, std::string value) {
-    const size_t size = si._rangeSize;
-    auto* castedRange = reinterpret_cast<char*>(si._base);
+findString(std::span<std::byte> bytes, std::string value) {
+    auto* castedRange = reinterpret_cast<char*>(bytes);
 
     Result<char*> r;
-    for (size_t idx = 0; idx < size; idx++) {
+    for (size_t idx = 0; idx < bytes.size(); idx++) {
         char* charPtr = (castedRange + idx);
         if (std::string_view{charPtr, value.size()} == value) {
             std::cout << "find at " << idx << '\n';
@@ -100,9 +88,9 @@ findString(SearchIn<ptrT> si, std::string value) {
     return r;
 }
 
-template <typename ptrT, typename TypeToSearch>
+template <typename TypeToSearch>
 [[nodiscard]] TypeToSearch
-findValueWithOffset(ptrT* base, size_t offset) {
+findValueWithOffset(std::span<std::byte> base, size_t offset) {
     offset /= sizeof(TypeToSearch);
     auto ptr = reinterpret_cast<TypeToSearch*>(base);
     return ptr[offset];
@@ -114,15 +102,14 @@ getOffset(T* t, U* u) {
     return reinterpret_cast<std::byte*>(u) - reinterpret_cast<std::byte*>(t);
 }
 
-template <typename ptrT, typename TypeToSearch>
+template <typename TypeToSearch>
 class dynamicScan {
    public:
-    dynamicScan(SearchIn<ptrT> si, TypeToSearch value)
-        : _v{value}, _si{si} {
-        const size_t size = _si._rangeSize / sizeof(TypeToSearch);
-        TypeToSearch* castedRange = reinterpret_cast<TypeToSearch*>(_si._base);
-
-        for (size_t idx = 0; idx < size; idx++)
+    dynamicScan(std::span<std::byte> bytes, TypeToSearch value)
+        : _v{value}, memPool{bytes} {
+        TypeToSearch* castedRange = reinterpret_cast<TypeToSearch*>(bytes);
+        memPool.size();
+        for (size_t idx = 0; idx < ; idx++)
             if (castedRange[idx] == _v)
                 _results.push_back({castedRange + idx, idx});
     }
@@ -155,9 +142,9 @@ class dynamicScan {
 
     void printResults() {
         if (_results.size()) {
-            std::cout << "base [" << _si._base << "] +\n";
+            std::cout << "base [" << _bytes << "] +\n";
             for (auto& v : _results) {
-                const ptrdiff_t offset = getOffset(_si._base, v._ptr);
+                const ptrdiff_t offset = getOffset(_bytes, v._ptr);
                 std::cout << "\t\t\t" << offset << " = " << v.getValue() << '\n';
             }
         }
@@ -165,8 +152,10 @@ class dynamicScan {
 
    private:
     TypeToSearch _v;
-    SearchIn<ptrT> _si;
+    std::span<std::byte> memPool;
     std::vector<Result<TypeToSearch>> _results;
 };
 
 }  // namespace memory
+
+#undef HEXED
