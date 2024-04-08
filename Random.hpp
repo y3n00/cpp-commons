@@ -35,7 +35,7 @@ class Random_t {
         if constexpr (std::is_floating_point_v<NT>)
             return std::uniform_real_distribution<NT>{min, max}(gen);
         else
-            return std::uniform_int_distribution{min, max}(gen);
+            return std::uniform_int_distribution<NT>{min, max}(gen);
     }
 
 #ifdef RANDOM_STRING
