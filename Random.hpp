@@ -1,11 +1,11 @@
-#pragma once
+#include <algorithm>
+#include <array>
 #include <concepts>
+#include <iostream>
 #include <limits>
 #include <random>
-
-#ifdef RANDOM_STRING
 #include <string>
-#endif
+#include <vector>
 
 #ifdef RANDOM_STATIC
 #define IF_STATIC static
@@ -31,24 +31,46 @@ class Random_t {
     Random_t(const Random_t&) = delete;
     Random_t& operator=(const Random_t&) = delete;
 
-    [[nodiscard]] IF_STATIC inline NT get(NT min = typeLimit::min(), NT max = typeLimit::max()) {
-        if constexpr (std::is_floating_point_v<NT>)
-            return std::uniform_real_distribution<NT>{min, max}(gen);
-        else
-            return std::uniform_int_distribution<NT>{min, max}(gen);
+    IF_STATIC NT get(NT min_val = typeLimit::min(), NT max_val = typeLimit::max()) {
+        if constexpr (std::is_floating_point_v<NT>) {
+            return std::uniform_real_distribution<NT>{min_val, max_val}(gen);
+        } else {
+            return std::uniform_int_distribution<NT>{min_val, max_val}(gen);
+        }
     }
 
-#ifdef RANDOM_STRING
-    [[nodiscard]] IF_STATIC inline std::string generate_string(size_t strLen) {
+    IF_STATIC std::string generate_string(size_t strLen) {
         constexpr static std::string_view SYMBOLS =
             "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
             "abcdefghijklmnopqrstuvwxyz"
             "1234567890";
+        constexpr static auto last_idx = static_cast<NT>(SYMBOLS.length() - 1);
         std::string result(strLen, ' ');
         for (char& ch : result)
-            ch = SYMBOLS[get(0, SYMBOLS.length() - 1)];
+            ch = SYMBOLS[get(0, last_idx)];
         return result;
     }
-#endif
+
+    template <std::ranges::range R>
+    IF_STATIC void fill_range(R& range, NT min_val = typeLimit::min(), NT max_val = typeLimit::max()) {
+        for (auto& element : range) {
+            element = get(min_val, max_val);
+        }
+    }
+
+    template <std::size_t SZ>
+    IF_STATIC std::array<NT, SZ> filled_array(NT min = typeLimit::min(), NT max = typeLimit::max()) {
+        min = std::clamp(min, typeLimit::min(), typeLimit::max());
+        max = std::clamp(max, typeLimit::min(), typeLimit::max());
+
+        std::array<NT, SZ> arr;
+        fill_range(arr, min, max);
+        return arr;
+    }
+
+    IF_STATIC std::vector<NT> filled_vector(std::size_t size, NT min_val = typeLimit::min(), NT max_val = typeLimit::max()) {
+        std::vector<NT> vec(size);
+        fill_range(vec, min_val, max_val);
+        return vec;
+    }
 };
-using Random = Random_t<uint32_t>;
