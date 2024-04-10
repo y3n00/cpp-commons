@@ -60,9 +60,6 @@ class Random_t {
 
     template <std::size_t SZ>
     IF_STATIC std::array<NT, SZ> filled_array(NT min = typeLimit::min(), NT max = typeLimit::max()) {
-        min = std::clamp(min, typeLimit::min(), typeLimit::max());
-        max = std::clamp(max, typeLimit::min(), typeLimit::max());
-
         std::array<NT, SZ> arr;
         fill_range(arr, min, max);
         return arr;
