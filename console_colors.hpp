@@ -1,12 +1,12 @@
 #pragma once
 
 #if defined(_MSVC_LANG)
-#define VT_CPP_VERSION _MSVC_LANG
+#define CPP_STANDARD _MSVC_LANG
 #else
-#define VT_CPP_VERSION __cplusplus
+#define CPP_STANDARD __cplusplus
 #endif
 
-#if (VT_CPP_VERSION >= 202002L)
+#if (CPP_STANDARD >= 202002L)
 #include <format>
 namespace _FMT = std;
 #else
