@@ -1,7 +1,7 @@
-#include <algorithm>
+#pragma once
+
 #include <array>
 #include <concepts>
-#include <iostream>
 #include <limits>
 #include <random>
 #include <string>
@@ -23,7 +23,7 @@ class Random_t {
     using typeLimit = std::numeric_limits<NT>;
 
    private:
-    IF_STATIC_VAR std::mt19937 gen{std::random_device{}()};
+    IF_STATIC_VAR thread_local std::mt19937 gen{std::random_device{}()};
 
    public:
     Random_t() = default;
@@ -35,7 +35,12 @@ class Random_t {
         if constexpr (std::is_floating_point_v<NT>) {
             return std::uniform_real_distribution<NT>{min_val, max_val}(gen);
         } else {
-            return std::uniform_int_distribution<NT>{min_val, max_val}(gen);
+            if constexpr (sizeof(NT) == 1) {
+                const auto v = std::uniform_int_distribution<int16_t>{min_val, max_val}(gen);
+                return static_cast<NT>(v);
+            } else {
+                return std::uniform_int_distribution<NT>{min_val, max_val}(gen);
+            }
         }
     }
 
