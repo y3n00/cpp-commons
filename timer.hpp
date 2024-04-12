@@ -33,7 +33,7 @@ class Timer {
     }
 
     auto get_duration() const {
-        auto duration = is_running ? SC::now() - m_start : m_stop - m_start;
+        const auto duration = (is_running ? SC::now() : m_stop) - m_start;
         return std::chrono::duration<double, typename M::period>(duration);
     }
 
@@ -114,4 +114,20 @@ class BenchTimer {
     using Timer_t = Timer<M>;
     using TimerMap = std::map<std::string, Timer_t>;
     TimerMap m_timers;
+};
+
+template <Measurement M>
+class Timer_Wrapper {
+    using Timer_t = Timer<M>;
+
+   public:
+    Timer_Wrapper(Timer_t& timer) : m_timer(timer) { m_timer.start(); }
+    Timer_Wrapper(const Timer_Wrapper&) = delete;
+    Timer_Wrapper& operator=(const Timer_Wrapper&) = delete;
+    Timer_Wrapper(Timer_Wrapper&&) = delete;
+    Timer_Wrapper& operator=(Timer_Wrapper&&) = delete;
+    ~Timer_Wrapper() { m_timer.stop(); }
+
+   private:
+    Timer_t& m_timer;
 };
