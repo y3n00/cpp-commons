@@ -9,7 +9,7 @@
 
 #ifdef RANDOM_STATIC
 #define IF_STATIC static
-#define IF_STATIC_VAR static inline
+#define IF_STATIC_VAR static inline thread_local
 #else
 #define IF_STATIC
 #define IF_STATIC_VAR
@@ -23,7 +23,7 @@ class Random_t {
     using typeLimit = std::numeric_limits<NT>;
 
    private:
-    IF_STATIC_VAR thread_local std::mt19937 gen{std::random_device{}()};
+    IF_STATIC_VAR std::mt19937 gen{std::random_device{}()};
 
    public:
     Random_t() = default;
