@@ -8,14 +8,15 @@
 
 #if (CPP_STANDARD >= 202002L)
 #include <format>
-namespace _FMT = std;
+#define _FMT std
 #else
 #include <fmt/format.h>
-namespace _FMT = fmt;
+#define _FMT fmt
 #endif
 
+#include <array>
 #include <string>
-#include <vector>
+
 namespace cliColors {
     enum class Colors {
         reset = 0,
@@ -40,8 +41,8 @@ namespace cliColors {
         _default = 39,
     };
 
-    static inline std::vector<Colors> getAllColors() {
-        static const auto colors = std::vector{
+    [[nodiscard]] constexpr auto getAllColors() {
+        constexpr auto colors = std::to_array({
             Colors::reset,
             Colors::black,
             Colors::red,
@@ -62,14 +63,18 @@ namespace cliColors {
             Colors::lightcyan,
             Colors::white,
             Colors::_default,
-        };
+        });
         return colors;
     }
 
-    struct ColorTxt {
-        static inline std::string Colorize(const std::string& str, Colors c) {
+    namespace ColorTxt {
+        [[nodiscard]] inline std::string Reset() { return "\x1b[0m"; }
+
+        [[nodiscard]] std::string Colorize(const std::string& str, Colors c) {
             return _FMT::format("\x1b[1;{}m{}{}", static_cast<int>(c), str, Reset());
         }
-        static inline std::string Reset() { return "\x1b[0m"; }
-    };
+    }  // namespace ColorTxt
 };  // namespace cliColors
+
+#undef _FMT
+#undef CPP_STANDARD
