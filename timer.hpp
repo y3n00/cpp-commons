@@ -122,7 +122,7 @@ class Timer_Wrapper {
     using Timer_t = Timer<M>;
 
    public:
-    explicit Timer_Wrapper(Timer_t& timer) : m_timer(timer) { m_timer.start(); }
+    explicit Timer_Wrapper(Timer_t& timer) noexcept : m_timer(timer) { m_timer.start(); }
     ~Timer_Wrapper() { m_timer.stop(); }
 
     Timer_Wrapper(const Timer_Wrapper&) = delete;
