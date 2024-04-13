@@ -2,9 +2,9 @@
 #include <algorithm>
 #include <chrono>
 #include <execution>
-#include <map>
 #include <ranges>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace Measurements {
@@ -21,18 +21,21 @@ concept Measurement = std::chrono::_Is_duration_v<M>;
 
 template <Measurement M>
 class Timer {
+    using SC = std::chrono::steady_clock;
+    using TP = std::chrono::time_point<SC>;
+
    public:
     Timer() = default;
 
-    auto start_timestamp() const { return m_start; }
-    auto stop_timestamp() const { return m_stop; }
-    auto all_timestamps() const {
+    [[nodiscard]] auto start_timestamp() const { return m_start; }
+    [[nodiscard]] auto stop_timestamp() const { return m_stop; }
+    [[nodiscard]] auto all_timestamps() const {
         return m_timestamps |
                std::views::transform([](const auto& ns) { return std::chrono::duration_cast<M>(ns); }) |
                std::ranges::to<std::vector<M>>();
     }
 
-    auto get_duration() const {
+    [[nodiscard]] auto get_duration() const {
         const auto duration = (is_running ? SC::now() : m_stop) - m_start;
         return std::chrono::duration<double, typename M::period>(duration);
     }
@@ -64,18 +67,18 @@ class Timer {
     }
 
    private:
-    using SC = std::chrono::steady_clock;
-    using TP = std::chrono::time_point<SC>;
-
+    bool is_running = false;
     TP m_start = {}, m_stop = {};
     std::vector<Measurements::ns> m_timestamps;
-    bool is_running = false;
 };
 
 template <Measurement M>
 class BenchTimer {
+    using Timer_t = Timer<M>;
+    using TimerMap = std::unordered_map<std::string, Timer_t>;
+
    public:
-    auto& add(const std::string& title) {
+    [[nodiscard]] auto& add(const std::string& title) {
         return m_timers[title] = Timer_t{};
     }
 
@@ -106,13 +109,11 @@ class BenchTimer {
         }
     }
 
-    auto get_all() const { return m_timers; }
+    [[nodiscard]] auto get_all() const { return m_timers; }
     void remove(const std::string& title) { m_timers.erase(title); }
     void remove_all() { m_timers.clear(); }
 
    private:
-    using Timer_t = Timer<M>;
-    using TimerMap = std::map<std::string, Timer_t>;
     TimerMap m_timers;
 };
 
@@ -121,12 +122,13 @@ class Timer_Wrapper {
     using Timer_t = Timer<M>;
 
    public:
-    Timer_Wrapper(Timer_t& timer) : m_timer(timer) { m_timer.start(); }
+    explicit Timer_Wrapper(Timer_t& timer) : m_timer(timer) { m_timer.start(); }
+    ~Timer_Wrapper() { m_timer.stop(); }
+
     Timer_Wrapper(const Timer_Wrapper&) = delete;
     Timer_Wrapper& operator=(const Timer_Wrapper&) = delete;
     Timer_Wrapper(Timer_Wrapper&&) = delete;
     Timer_Wrapper& operator=(Timer_Wrapper&&) = delete;
-    ~Timer_Wrapper() { m_timer.stop(); }
 
    private:
     Timer_t& m_timer;
