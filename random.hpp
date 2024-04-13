@@ -23,6 +23,10 @@ class Random_t {
     using typeLimit = std::numeric_limits<NT>;
 
    private:
+    constexpr static inline std::string_view m_all_symbols =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz"
+        "1234567890";
     IF_STATIC_VAR std::mt19937 gen{std::random_device{}()};
 
    public:
@@ -44,15 +48,20 @@ class Random_t {
         }
     }
 
-    [[nodiscard]] IF_STATIC std::string generate_string(size_t strLen) {
-        constexpr static std::string_view SYMBOLS =
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-            "abcdefghijklmnopqrstuvwxyz"
-            "1234567890";
-        constexpr static auto last_idx = static_cast<NT>(SYMBOLS.length() - 1);
-        std::string result(strLen, ' ');
+    [[nodiscard]] IF_STATIC std::string generate_string(size_t str_len) {
+        constexpr static auto last_idx = static_cast<NT>(m_all_symbols.length() - 1);
+        std::string result(str_len, ' ');
         for (char& ch : result)
-            ch = SYMBOLS[get(0, last_idx)];
+            ch = m_all_symbols[get(0, last_idx)];
+        return result;
+    }
+
+    [[nodiscard]] IF_STATIC std::string generate_string(size_t str_len, const std::string& extra_chars) {
+        const auto all_symbols = extra_chars + m_all_symbols.data();
+        const auto last_idx = static_cast<NT>(all_symbols.length() - 1);
+        std::string result(str_len, ' ');
+        for (char& ch : result)
+            ch = all_symbols[get(0, last_idx)];
         return result;
     }
 
