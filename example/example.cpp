@@ -1,6 +1,6 @@
-#include <fmt/chrono.h>  // for convenient printing chrono values
-#include <fmt/format.h>  // for convenient printing =)
-#include <fmt/ranges.h>  // for convenient printing ranges || arrays || vectors
+#include <fmt/chrono.h>  //
+#include <fmt/format.h>  //
+#include <fmt/ranges.h>  // for convenient printing
 
 #include <iostream>
 
