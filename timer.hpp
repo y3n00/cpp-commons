@@ -21,54 +21,72 @@ concept Measurement = std::chrono::_Is_duration_v<M>;
 
 template <Measurement M>
 class Timer {
-    using SC = std::chrono::steady_clock;
-    using TP = std::chrono::time_point<SC>;
+    using Clock_Type = std::chrono::steady_clock;
+    using Time_Point = std::chrono::time_point<Clock_Type>;
 
    public:
     Timer() = default;
 
+    Timer(Timer&& other) noexcept
+        : is_running{std::move(other.is_running)},
+          m_start{std::move(other.m_start)},
+          m_stop{std::move(other.m_stop)},
+          m_timestamps{std::move(other.m_timestamps)} {
+        other.is_running = false;
+    }
+
+    Timer& operator=(Timer&& other) noexcept {
+        is_running = std::move(other.is_running);
+        m_start = std::move(other.m_start);
+        m_stop = std::move(other.m_stop);
+        m_timestamps = std::move(other.m_timestamps);
+        other.is_running = false;
+        return *this;
+    }
+
     [[nodiscard]] auto start_timestamp() const { return m_start; }
+
     [[nodiscard]] auto stop_timestamp() const { return m_stop; }
+
     [[nodiscard]] auto all_timestamps() const {
         return m_timestamps |
                std::views::transform([](const auto& ns) { return std::chrono::duration_cast<M>(ns); }) |
-               std::ranges::to<std::vector<M>>();
+               std::ranges::to<std::vector>();
     }
 
     [[nodiscard]] auto get_duration() const {
-        const auto duration = (is_running ? SC::now() : m_stop) - m_start;
+        const auto duration = (is_running ? Clock_Type::now() : m_stop) - m_start;
         return std::chrono::duration<double, typename M::period>(duration);
     }
 
-    void reset() {
-        m_start = m_stop = {};
-        m_timestamps.clear();
-        is_running = false;
+    inline void reset() noexcept {
+        *this = Timer{};
     }
 
     void start() {
         reset();
         m_timestamps.emplace_back(0);
-        m_start = SC::now();
+        m_start = Clock_Type::now();
         is_running = true;
     }
 
     void stop() {
-        if (!is_running)
+        if (!is_running) [[unlikely]]
             return;
         timestamp();
-        m_stop = SC::now();
+        m_stop = Clock_Type::now();
         is_running = false;
     }
 
     void timestamp() {
-        if (is_running)
-            m_timestamps.emplace_back(SC::now() - m_start);
+        if (!is_running) [[unlikely]]
+            return;
+        m_timestamps.emplace_back(Clock_Type::now() - m_start);
     }
 
    private:
     bool is_running = false;
-    TP m_start = {}, m_stop = {};
+    Time_Point m_start = {}, m_stop = {};
     std::vector<Measurements::ns> m_timestamps;
 };
 
@@ -83,38 +101,39 @@ class BenchTimer {
     }
 
     void start_all() {
-        for (auto& pair : m_timers)
-            pair.second.start();
-    }
-
-    void start_all_par() {
-        std::for_each(std::execution::par, m_timers.begin(), m_timers.end(),
-                      [](auto& pair) { pair.second.start(); });
+        constexpr auto start_f = [](auto& elem) { elem.start(); };
+        process_map(start_f);
     }
 
     void stop_all() {
-        for (auto& pair : m_timers)
-            pair.second.stop();
-    }
-
-    void stop_all_par() {
-        std::for_each(std::execution::par, m_timers.begin(), m_timers.end(),
-                      [](auto& pair) { pair.second.stop(); });
+        constexpr auto stop_f = [](auto& elem) { elem.stop(); };
+        process_map(stop_f);
     }
 
     void make_timestamp(const std::string& title) {
         auto it = m_timers.find(title);
-        if (it != m_timers.end()) {
+        if (it != m_timers.end()) [[unlikely]]
             it->second.timestamp();
-        }
     }
 
     [[nodiscard]] auto get_all() const { return m_timers; }
+
     void remove(const std::string& title) { m_timers.erase(title); }
+
     void remove_all() { m_timers.clear(); }
 
    private:
     TimerMap m_timers;
+    void process_map(auto&& func) {
+        if (m_timers.empty())
+            return;
+        const auto sz = m_timers.size(), threshold = 20;
+        auto&& timers = m_timers | std::views::values;
+        if (sz <= threshold) [[likely]]
+            std::ranges::for_each(timers, func);
+        else
+            std::for_each(std::execution::par, timers.begin(), timers.end(), func);
+    }
 };
 
 template <Measurement M>
