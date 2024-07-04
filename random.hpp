@@ -16,11 +16,11 @@
 #endif
 
 template <typename T>
-concept NumericType = std::integral<T> || std::floating_point<T>;
+concept Numeric_Type = std::integral<T> || std::floating_point<T>;
 
-template <NumericType NT>
+template <Numeric_Type NT>
 class Random_t {
-    using typeLimit = std::numeric_limits<NT>;
+    using Type_Limit = std::numeric_limits<NT>;
 
    private:
     constexpr static inline std::string_view m_all_symbols =
@@ -35,13 +35,13 @@ class Random_t {
     Random_t(const Random_t&) = delete;
     Random_t& operator=(const Random_t&) = delete;
 
-    [[nodiscard]] IF_STATIC NT get(NT min_val = typeLimit::min(), NT max_val = typeLimit::max()) {
+    [[nodiscard]] IF_STATIC NT get(NT min_val = Type_Limit::min(), NT max_val = Type_Limit::max()) {
         if constexpr (std::is_floating_point_v<NT>) {
             return std::uniform_real_distribution<NT>{min_val, max_val}(gen);
         } else {
             if constexpr (sizeof(NT) == 1) {
-                const auto v = std::uniform_int_distribution<int16_t>{min_val, max_val}(gen);
-                return static_cast<NT>(v);
+                const auto temp_value = std::uniform_int_distribution<int16_t>{min_val, max_val}(gen);
+                return static_cast<NT>(temp_value);
             } else {
                 return std::uniform_int_distribution<NT>{min_val, max_val}(gen);
             }
@@ -66,20 +66,19 @@ class Random_t {
     }
 
     template <std::ranges::range R>
-    [[nodiscard]] IF_STATIC void fill_range(R& range, NT min_val = typeLimit::min(), NT max_val = typeLimit::max()) {
-        for (auto& element : range) {
+    [[nodiscard]] IF_STATIC void fill_range(R& range, NT min_val = Type_Limit::min(), NT max_val = Type_Limit::max()) {
+        for (auto& element : range)
             element = get(min_val, max_val);
-        }
     }
 
     template <std::size_t SZ>
-    [[nodiscard]] IF_STATIC std::array<NT, SZ> filled_array(NT min = typeLimit::min(), NT max = typeLimit::max()) {
+    [[nodiscard]] IF_STATIC std::array<NT, SZ> filled_array(NT min = Type_Limit::min(), NT max = Type_Limit::max()) {
         std::array<NT, SZ> arr;
         fill_range(arr, min, max);
         return arr;
     }
 
-    [[nodiscard]] IF_STATIC std::vector<NT> filled_vector(std::size_t size, NT min_val = typeLimit::min(), NT max_val = typeLimit::max()) {
+    [[nodiscard]] IF_STATIC std::vector<NT> filled_vector(std::size_t size, NT min_val = Type_Limit::min(), NT max_val = Type_Limit::max()) {
         std::vector<NT> vec(size);
         fill_range(vec, min_val, max_val);
         return vec;
