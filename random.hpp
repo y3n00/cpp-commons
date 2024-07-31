@@ -90,18 +90,21 @@ class Random_t {
     }
 
     [[nodiscard]] IF_STATIC inline void fill_range(std::ranges::range auto& range, NT min_val = Type_Limit::min(), NT max_val = Type_Limit::max()) {
-        const auto fill_f = [&](auto& elem) { elem = get(min_val, max_val); };
-        std::for_each(std::execution::par_unseq, range.begin(), range.end(), fill_f);
+        using value_type = std::ranges::range_value_t<R>;
+        static_assert(std::is_integral<value_type>);
+
+        thread_local static Random_t<value_type> rng;
+        std::ranges::for_each(range, [&](auto& elem) { elem = rng.get(min_val, max_val); });
     }
 
-    template <std::size_t SZ>
-    [[nodiscard]] IF_STATIC inline std::array<NT, SZ> filled_array(NT min = Type_Limit::min(), NT max = Type_Limit::max()) {
+    template <size_t SZ>
+    [[nodiscard]] IF_STATIC inline decltype(auto) get_array(NT min = Type_Limit::min(), NT max = Type_Limit::max()) {
         std::array<NT, SZ> arr;
         fill_range(arr, min, max);
         return arr;
     }
 
-    [[nodiscard]] IF_STATIC inline std::vector<NT> filled_vector(std::size_t size, NT min_val = Type_Limit::min(), NT max_val = Type_Limit::max()) {
+    [[nodiscard]] IF_STATIC inline decltype(auto) get_vector(size_t size, NT min_val = Type_Limit::min(), NT max_val = Type_Limit::max()) {
         std::vector<NT> vec(size);
         fill_range(vec, min_val, max_val);
         return vec;
