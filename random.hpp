@@ -62,8 +62,7 @@ class Random_t {
         std::ranges::for_each(range, [&](auto& elem) { elem = from_range<Num_t>(min_val, max_val); });
     }
 
-    template <std::ranges::random_access_range R, std::ranges::random_access_range From_R>
-    IF_STATIC inline void fill_range_from(R& range, const From_R& from) noexcept {
+    IF_STATIC inline void fill_range_from(std::ranges::random_access_range auto& range, const std::ranges::random_access_range auto& from) noexcept {
         if (std::ranges::empty(from))
             return;
         std::ranges::for_each(range, [&](auto& elem) { elem = get_elem(from); });
