@@ -6,12 +6,13 @@
 #include <limits>
 #include <optional>
 #include <random>
+#include <ranges>
 #include <string>
 #include <vector>
 
 #ifdef RANDOM_STATIC
 #define IF_STATIC static
-#define IF_STATIC_VAR static inline
+#define IF_STATIC_VAR thread_local static inline
 #else
 #define IF_STATIC
 #define IF_STATIC_VAR
@@ -20,12 +21,12 @@
 template <typename T>
 concept Numeric_Type = std::is_arithmetic_v<T>;
 
-template <Numeric_Type Num_Type>
-class Random_t {
-    using Type_Limit = std::numeric_limits<Num_Type>;
+#define MAX_LIMIT(T) (std::numeric_limits<T>::max())
+#define MIN_LIMIT(T) (std::numeric_limits<T>::min())
 
+class Random_t {
    private:
-    thread_local IF_STATIC_VAR std::mt19937 gen{std::random_device{}()};
+    IF_STATIC_VAR std::mt19937 gen{std::random_device{}()};
 
    public:
     Random_t() = default;
@@ -33,7 +34,8 @@ class Random_t {
     Random_t(const Random_t&) = delete;
     Random_t& operator=(const Random_t&) = delete;
 
-    [[nodiscard]] IF_STATIC inline Num_Type from_range(Num_Type min_val = Type_Limit::min(), Num_Type max_val = Type_Limit::max()) {
+    template <Numeric_Type Num_Type>
+    [[nodiscard]] IF_STATIC inline constexpr Num_Type from_range(Num_Type min_val = MIN_LIMIT(Num_Type), Num_Type max_val = MAX_LIMIT(Num_Type)) noexcept {
         if constexpr (std::is_floating_point_v<Num_Type>) {
             return std::uniform_real_distribution<Num_Type>{min_val, max_val}(gen);
         } else {
@@ -46,59 +48,47 @@ class Random_t {
         }
     }
 
-    [[nodiscard]] IF_STATIC inline Num_Type from_zero_to(Num_Type max_val = Type_Limit::max()) {
-        return from_range(Num_Type{}, max_val);
+    template <Numeric_Type Num_Type>
+    [[nodiscard]] IF_STATIC inline constexpr Num_Type from_zero_to(Num_Type max_val = MAX_LIMIT(Num_Type)) noexcept {
+        return from_range<Num_Type>(Num_Type{}, max_val);
     }
 
-    template <std::ranges::random_access_range R>
-    [[nodiscard]] IF_STATIC inline auto get_elem(R&& range) {
-        using ret_t = std::optional<std::ranges::range_value_t<R>>;
-
-        thread_local static Random_t<size_t> rng;
-        const auto size = std::ranges::size(range);
-        return size ? ret_t{range[rng.from_zero_to(size - 1)]} : ret_t{};
+    [[nodiscard]] IF_STATIC inline constexpr const auto& get_elem(const std::ranges::random_access_range auto& range) noexcept {
+        return range[from_zero_to<std::size_t>(std::ranges::size(range) - 1)];
     }
 
-    template <std::ranges::random_access_range R>
-    [[nodiscard]] IF_STATIC inline void fill_range(R& range, Num_Type min_val = Type_Limit::min(), Num_Type max_val = Type_Limit::max()) {
-        using value_type = std::ranges::range_value_t<R>;
-        static_assert(std::is_integral_v<value_type>);
-
-        thread_local static Random_t<value_type> rng;
-        std::ranges::for_each(range, [&](auto& elem) { elem = rng.from_range(min_val, max_val); });
+    template <std::ranges::random_access_range R, typename Num_t = std::ranges::range_value_t<R>>
+    IF_STATIC inline void fill_range(R& range, Num_t min_val = MIN_LIMIT(Num_t), Num_t max_val = MAX_LIMIT(Num_t)) noexcept {
+        std::ranges::for_each(range, [&](auto& elem) { elem = from_range<Num_t>(min_val, max_val); });
     }
 
-    template <std::ranges::random_access_range R>
-    [[nodiscard]] IF_STATIC inline void fill_range_from(R& range, std::ranges::random_access_range auto&& from) {
+    template <std::ranges::random_access_range R, std::ranges::random_access_range From_R>
+    IF_STATIC inline void fill_range_from(R& range, const From_R& from) noexcept {
         if (std::ranges::empty(from))
             return;
-
-        thread_local static Random_t<std::ranges::range_value_t<R>> rng;
-        std::ranges::for_each(range, [&](auto& elem) {
-            elem = rng.get_elem(from).value();
-        });
+        std::ranges::for_each(range, [&](auto& elem) { elem = get_elem(from); });
     }
 
-    [[nodiscard]] IF_STATIC inline decltype(auto) get_string(size_t str_len, const std::string& extra_chars = "") {
+    [[nodiscard]] IF_STATIC inline std::string get_string(size_t str_len, const std::string& extra_chars = "") noexcept {
         constexpr std::string_view basic_symbols =
             "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
             "abcdefghijklmnopqrstuvwxyz"
             "1234567890";
-        std::string result(str_len, ' ');
-
+        std::vector<char> result(str_len);
         const auto final_range = extra_chars + basic_symbols.data();
         fill_range_from(result, final_range);
-        return result;
+        return std::string(result.begin(), result.end());
     }
 
-    template <size_t SZ>
-    [[nodiscard]] IF_STATIC inline decltype(auto) get_array(Num_Type min_val = Type_Limit::min(), Num_Type max_val = Type_Limit::max()) {
+    template <Numeric_Type Num_Type, size_t SZ>
+    [[nodiscard]] IF_STATIC inline constexpr std::array<Num_Type, SZ> get_array(Num_Type min_val = MIN_LIMIT(Num_Type), Num_Type max_val = MAX_LIMIT(Num_Type)) noexcept {
         std::array<Num_Type, SZ> arr;
         fill_range(arr, min_val, max_val);
         return arr;
     }
 
-    [[nodiscard]] IF_STATIC inline decltype(auto) get_vector(size_t size, Num_Type min_val = Type_Limit::min(), Num_Type max_val = Type_Limit::max()) {
+    template <Numeric_Type Num_Type>
+    [[nodiscard]] IF_STATIC inline std::vector<Num_Type> get_vector(size_t size, Num_Type min_val = MIN_LIMIT(Num_Type), Num_Type max_val = MAX_LIMIT(Num_Type)) noexcept {
         std::vector<Num_Type> vec(size);
         fill_range(vec, min_val, max_val);
         return vec;
