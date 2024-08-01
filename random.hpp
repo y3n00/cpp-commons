@@ -12,7 +12,7 @@
 
 #ifdef RANDOM_STATIC
 #define IF_STATIC static
-#define IF_STATIC_VAR thread_local static inline
+#define IF_STATIC_VAR static inline thread_local
 #else
 #define IF_STATIC
 #define IF_STATIC_VAR
@@ -37,15 +37,14 @@ class Random_t {
     IF_STATIC_VAR std::mt19937 gen{std::random_device{}()};
 
     template <Numeric_Type Num_Type>
-    [[nodiscard]] IF_STATIC inline PURE_AUTO get_distribution(MIN_LIMIT(Num_Type), MAX_LIMIT(Num_Type)) noexcept {
-        if constexpr (std::is_floating_point_v<Num_Type>) {
+    [[nodiscard]] IF_STATIC constexpr inline PURE_AUTO get_distribution(MIN_LIMIT(Num_Type), MAX_LIMIT(Num_Type)) noexcept {
+        if constexpr (std::is_floating_point_v<Num_Type>)
             return real_dist<Num_Type>{min_val, max_val};
-        } else {
-            if constexpr (sizeof(Num_Type) == 1)             // cant use 1 byte types on msvc
-                return int_dist<int16_t>{min_val, max_val};  // int16_t covers all numeric limits of 1 byte types
-            else
-                return int_dist<Num_Type>{min_val, max_val};
-        }
+
+        else if constexpr (sizeof(Num_Type) == 1)        // cant use 1 byte types on msvc
+            return int_dist<int16_t>{min_val, max_val};  // int16_t covers all numeric limits of 1 byte types
+        else
+            return int_dist<Num_Type>{min_val, max_val};
     }
 
    public:
@@ -56,7 +55,7 @@ class Random_t {
 
     template <Numeric_Type Num_Type>
     [[nodiscard]] IF_STATIC inline PURE_AUTO from_range(MIN_LIMIT(Num_Type), MAX_LIMIT(Num_Type)) noexcept {
-        return get_distribution<Num_Type>(min_val, max_val)(gen);
+        return static_cast<Num_Type>(get_distribution<Num_Type>(min_val, max_val)(gen));
     }
 
     template <Numeric_Type Num_Type>
@@ -69,6 +68,7 @@ class Random_t {
     }
 
     template <std::ranges::range R, typename Num_t = std::ranges::range_value_t<R>>
+        requires Numeric_Type<Num_t>
     [[noreturn]] IF_STATIC inline void fill_range(R& range, MIN_LIMIT(Num_t), MAX_LIMIT(Num_t)) noexcept {
         std::ranges::for_each(range, [&](auto& elem) { elem = from_range<Num_t>(min_val, max_val); });
     }
@@ -76,6 +76,10 @@ class Random_t {
     [[noreturn]] IF_STATIC inline void fill_range_from(std::ranges::range auto& range, std::ranges::random_access_range auto&& from) noexcept {
         if (not std::ranges::empty(from))
             std::ranges::for_each(range, [&](auto& elem) { elem = get_elem(from); });
+    }
+
+    [[noreturn]] IF_STATIC inline void shuffle_range(std::ranges::random_access_range auto& range) {
+        std::ranges::shuffle(range, gen);
     }
 
     [[nodiscard]] IF_STATIC inline PURE_AUTO get_string(size_t str_len, const std::string& extra_chars = "") noexcept {
@@ -100,6 +104,10 @@ class Random_t {
         std::vector<Num_Type> vec(size);
         fill_range(vec, min_val, max_val);
         return vec;
+    }
+
+    [[nodiscard]] IF_STATIC inline bool get_bool() noexcept {
+        return from_zero_to<int>(1) == 0;
     }
 };
 
