@@ -93,3 +93,8 @@ class Random_t {
         return vec;
     }
 };
+
+#undef IF_STATIC
+#undef IF_STATIC_VAR
+#undef MAX_LIMIT
+#undef MIN_LIMIT
