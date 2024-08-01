@@ -4,6 +4,7 @@
 #include <concepts>
 #include <execution>
 #include <limits>
+#include <optional>
 #include <random>
 #include <string>
 #include <vector>
@@ -17,17 +18,13 @@
 #endif
 
 template <typename T>
-concept Numeric_Type = std::integral<T> || std::floating_point<T>;
+concept Numeric_Type = std::is_arithmetic_v<T>;
 
-template <Numeric_Type NT>
+template <Numeric_Type Num_Type>
 class Random_t {
-    using Type_Limit = std::numeric_limits<NT>;
+    using Type_Limit = std::numeric_limits<Num_Type>;
 
    private:
-    constexpr static inline std::string_view m_all_symbols =
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "abcdefghijklmnopqrstuvwxyz"
-        "1234567890";
     thread_local IF_STATIC_VAR std::mt19937 gen{std::random_device{}()};
 
    public:
@@ -36,76 +33,73 @@ class Random_t {
     Random_t(const Random_t&) = delete;
     Random_t& operator=(const Random_t&) = delete;
 
-    [[nodiscard]] IF_STATIC inline NT get(NT min_val = Type_Limit::min(), NT max_val = Type_Limit::max()) {
-        if constexpr (std::is_floating_point_v<NT>) {
-            return std::uniform_real_distribution<NT>{min_val, max_val}(gen);
+    [[nodiscard]] IF_STATIC inline Num_Type from_range(Num_Type min_val = Type_Limit::min(), Num_Type max_val = Type_Limit::max()) {
+        if constexpr (std::is_floating_point_v<Num_Type>) {
+            return std::uniform_real_distribution<Num_Type>{min_val, max_val}(gen);
         } else {
-            if constexpr (sizeof(NT) == 1) {
+            if constexpr (sizeof(Num_Type) == 1) {
                 const auto temp_value = std::uniform_int_distribution<int16_t>{min_val, max_val}(gen);
-                return static_cast<NT>(temp_value);
+                return static_cast<Num_Type>(temp_value);
             } else {
-                return std::uniform_int_distribution<NT>{min_val, max_val}(gen);
+                return std::uniform_int_distribution<Num_Type>{min_val, max_val}(gen);
             }
         }
     }
 
-    [[nodiscard]] IF_STATIC inline NT get(NT max_val = Type_Limit::max()) {
-        constexpr static NT min_val = 0;
-        if constexpr (std::is_floating_point_v<NT>) {
-            return std::uniform_real_distribution<NT>{min_val, max_val}(gen);
-        } else {
-            if constexpr (sizeof(NT) == 1) {
-                const auto temp_value = std::uniform_int_distribution<int16_t>{min_val, max_val}(gen);
-                return static_cast<NT>(temp_value);
-            } else {
-                return std::uniform_int_distribution<NT>{min_val, max_val}(gen);
-            }
-        }
+    [[nodiscard]] IF_STATIC inline Num_Type from_zero_to(Num_Type max_val = Type_Limit::max()) {
+        return from_range(Num_Type{}, max_val);
     }
 
     template <std::ranges::random_access_range R>
-    [[nodiscard]] IF_STATIC inline const auto& get(const R& range) {
-        static_assert(std::is_integral_v<NT>);
+    [[nodiscard]] IF_STATIC inline auto get_elem(R&& range) {
+        using ret_t = std::optional<std::ranges::range_value_t<R>>;
+
+        thread_local static Random_t<size_t> rng;
+        const auto size = std::ranges::size(range);
+        return size ? ret_t{range[rng.from_zero_to(size - 1)]} : ret_t{};
+    }
+
+    template <std::ranges::random_access_range R>
+    [[nodiscard]] IF_STATIC inline void fill_range(R& range, Num_Type min_val = Type_Limit::min(), Num_Type max_val = Type_Limit::max()) {
         using value_type = std::ranges::range_value_t<R>;
-
-        const auto sz = std::ranges::size(range);
-        return sz > 0 ? range[get(0, sz - 1)] : value_type{};
-    }
-
-    [[nodiscard]] IF_STATIC inline std::string generate_string(size_t str_len) {
-        constexpr static auto last_idx = static_cast<NT>(m_all_symbols.length() - 1);
-        std::string result(str_len, ' ');
-        for (char& ch : result)
-            ch = m_all_symbols[get(0, last_idx)];
-        return result;
-    }
-
-    [[nodiscard]] IF_STATIC inline std::string generate_string(size_t str_len, const std::string& extra_chars) {
-        const auto all_symbols = extra_chars + m_all_symbols.data();
-        const auto last_idx = static_cast<NT>(all_symbols.length() - 1);
-        std::string result(str_len, ' ');
-        for (char& ch : result)
-            ch = all_symbols[get(0, last_idx)];
-        return result;
-    }
-
-    [[nodiscard]] IF_STATIC inline void fill_range(std::ranges::range auto& range, NT min_val = Type_Limit::min(), NT max_val = Type_Limit::max()) {
-        using value_type = std::ranges::range_value_t<R>;
-        static_assert(std::is_integral<value_type>);
+        static_assert(std::is_integral_v<value_type>);
 
         thread_local static Random_t<value_type> rng;
-        std::ranges::for_each(range, [&](auto& elem) { elem = rng.get(min_val, max_val); });
+        std::ranges::for_each(range, [&](auto& elem) { elem = rng.from_range(min_val, max_val); });
+    }
+
+    template <std::ranges::random_access_range R>
+    [[nodiscard]] IF_STATIC inline void fill_range_from(R& range, std::ranges::random_access_range auto&& from) {
+        if (std::ranges::empty(from))
+            return;
+
+        thread_local static Random_t<std::ranges::range_value_t<R>> rng;
+        std::ranges::for_each(range, [&](auto& elem) {
+            elem = rng.get_elem(from).value();
+        });
+    }
+
+    [[nodiscard]] IF_STATIC inline decltype(auto) get_string(size_t str_len, const std::string& extra_chars = "") {
+        constexpr std::string_view basic_symbols =
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            "abcdefghijklmnopqrstuvwxyz"
+            "1234567890";
+        std::string result(str_len, ' ');
+
+        const auto final_range = extra_chars + basic_symbols.data();
+        fill_range_from(result, final_range);
+        return result;
     }
 
     template <size_t SZ>
-    [[nodiscard]] IF_STATIC inline decltype(auto) get_array(NT min = Type_Limit::min(), NT max = Type_Limit::max()) {
-        std::array<NT, SZ> arr;
-        fill_range(arr, min, max);
+    [[nodiscard]] IF_STATIC inline decltype(auto) get_array(Num_Type min_val = Type_Limit::min(), Num_Type max_val = Type_Limit::max()) {
+        std::array<Num_Type, SZ> arr;
+        fill_range(arr, min_val, max_val);
         return arr;
     }
 
-    [[nodiscard]] IF_STATIC inline decltype(auto) get_vector(size_t size, NT min_val = Type_Limit::min(), NT max_val = Type_Limit::max()) {
-        std::vector<NT> vec(size);
+    [[nodiscard]] IF_STATIC inline decltype(auto) get_vector(size_t size, Num_Type min_val = Type_Limit::min(), Num_Type max_val = Type_Limit::max()) {
+        std::vector<Num_Type> vec(size);
         fill_range(vec, min_val, max_val);
         return vec;
     }
