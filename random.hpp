@@ -64,16 +64,16 @@ class Random_t {
         return from_range<Num_Type>(Num_Type{}, max_val);
     }
 
-    [[nodiscard]] IF_STATIC inline PURE_AUTO get_elem(const std::ranges::random_access_range auto& range) noexcept {
+    [[nodiscard]] IF_STATIC inline PURE_AUTO get_elem(std::ranges::random_access_range auto&& range) noexcept {
         return range[from_zero_to<std::size_t>(std::ranges::size(range) - 1)];
     }
 
-    template <std::ranges::random_access_range R, typename Num_t = std::ranges::range_value_t<R>>
+    template <std::ranges::range R, typename Num_t = std::ranges::range_value_t<R>>
     [[noreturn]] IF_STATIC inline void fill_range(R& range, MIN_LIMIT(Num_t), MAX_LIMIT(Num_t)) noexcept {
         std::ranges::for_each(range, [&](auto& elem) { elem = from_range<Num_t>(min_val, max_val); });
     }
 
-    [[noreturn]] IF_STATIC inline void fill_range_from(std::ranges::random_access_range auto& range, const std::ranges::random_access_range auto& from) noexcept {
+    [[noreturn]] IF_STATIC inline void fill_range_from(std::ranges::range auto& range, std::ranges::random_access_range auto&& from) noexcept {
         if (not std::ranges::empty(from))
             std::ranges::for_each(range, [&](auto& elem) { elem = get_elem(from); });
     }
@@ -83,10 +83,9 @@ class Random_t {
             "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
             "abcdefghijklmnopqrstuvwxyz"
             "1234567890";
-        std::vector<char> result(str_len);
-        const auto final_range = extra_chars + basic_symbols.data();
-        fill_range_from(result, final_range);
-        return std::string(result.begin(), result.end());
+        std::string result(str_len, ' ');
+        fill_range_from(result, extra_chars + basic_symbols.data());
+        return result;
     }
 
     template <Numeric_Type Num_Type, size_t SZ>
