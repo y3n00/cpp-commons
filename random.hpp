@@ -63,22 +63,25 @@ class Random_t {
         return from_range<Num_Type>(Num_Type{}, max_val);
     }
 
-    [[nodiscard]] IF_STATIC inline PURE_AUTO get_elem(std::ranges::random_access_range auto&& range) noexcept {
-        return range[from_zero_to<std::size_t>(std::ranges::size(range) - 1)];
+    [[nodiscard]] IF_STATIC inline PURE_AUTO get_elem(std::ranges::range auto&& range) noexcept {
+        const auto last_idx = std::ranges::size(range) - 1;
+        auto it = std::ranges::begin(range);
+        std::ranges::advance(it, from_zero_to(last_idx));
+        return *it;
     }
 
     template <std::ranges::range R, typename Num_t = std::ranges::range_value_t<R>>
         requires Numeric_Type<Num_t>
-    [[noreturn]] IF_STATIC inline void fill_range(R& range, MIN_LIMIT(Num_t), MAX_LIMIT(Num_t)) noexcept {
+    IF_STATIC inline void fill_range(R& range, MIN_LIMIT(Num_t), MAX_LIMIT(Num_t)) noexcept {
         std::ranges::for_each(range, [&](auto& elem) { elem = from_range<Num_t>(min_val, max_val); });
     }
 
-    [[noreturn]] IF_STATIC inline void fill_range_from(std::ranges::range auto& range, std::ranges::random_access_range auto&& from) noexcept {
+    IF_STATIC inline void fill_range_from(std::ranges::range auto& range, const std::ranges::range auto& from) noexcept {
         if (not std::ranges::empty(from))
             std::ranges::for_each(range, [&](auto& elem) { elem = get_elem(from); });
     }
 
-    [[noreturn]] IF_STATIC inline void shuffle_range(std::ranges::random_access_range auto& range) {
+    IF_STATIC inline void shuffle_range(std::ranges::random_access_range auto& range) {
         std::ranges::shuffle(range, gen);
     }
 
@@ -87,7 +90,7 @@ class Random_t {
             "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
             "abcdefghijklmnopqrstuvwxyz"
             "1234567890";
-        std::string result(str_len, ' ');
+        std::string result(str_len, '.');
         fill_range_from(result, extra_chars + basic_symbols.data());
         return result;
     }
