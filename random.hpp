@@ -2,9 +2,7 @@
 
 #include <array>
 #include <concepts>
-#include <execution>
 #include <limits>
-#include <optional>
 #include <random>
 #include <ranges>
 #include <string>
@@ -40,7 +38,6 @@ class Random_t {
     [[nodiscard]] IF_STATIC constexpr inline PURE_AUTO get_distribution(MIN_LIMIT(Num_Type), MAX_LIMIT(Num_Type)) noexcept {
         if constexpr (std::is_floating_point_v<Num_Type>)
             return real_dist<Num_Type>{min_val, max_val};
-
         else if constexpr (sizeof(Num_Type) == 1)        // cant use 1 byte types on msvc
             return int_dist<int16_t>{min_val, max_val};  // int16_t covers all numeric limits of 1 byte types
         else
@@ -54,13 +51,13 @@ class Random_t {
     Random_t& operator=(const Random_t&) = delete;
 
     template <Numeric_Type Num_Type>
-    [[nodiscard]] IF_STATIC inline PURE_AUTO from_range(MIN_LIMIT(Num_Type), MAX_LIMIT(Num_Type)) noexcept {
-        return static_cast<Num_Type>(get_distribution<Num_Type>(min_val, max_val)(gen));
+    [[nodiscard]] IF_STATIC inline PURE_AUTO in_range(MIN_LIMIT(Num_Type), MAX_LIMIT(Num_Type)) noexcept {
+        return static_cast<Num_Type>(get_distribution(min_val, max_val)(gen));
     }
 
     template <Numeric_Type Num_Type>
     [[nodiscard]] IF_STATIC inline PURE_AUTO from_zero_to(MAX_LIMIT(Num_Type)) noexcept {
-        return from_range<Num_Type>(Num_Type{}, max_val);
+        return in_range<Num_Type>(Num_Type{}, max_val);
     }
 
     [[nodiscard]] IF_STATIC inline PURE_AUTO get_elem(std::ranges::range auto&& range) noexcept {
@@ -73,14 +70,13 @@ class Random_t {
     template <std::ranges::range R, typename Num_t = std::ranges::range_value_t<R>>
         requires Numeric_Type<Num_t>
     IF_STATIC inline void fill_range(R& range, MIN_LIMIT(Num_t), MAX_LIMIT(Num_t)) noexcept {
-        std::ranges::for_each(range, [&](auto& elem) { elem = from_range<Num_t>(min_val, max_val); });
+        std::ranges::for_each(range, [&](auto& elem) { elem = in_range<Num_t>(min_val, max_val); });
     }
 
     template <std::ranges::range R1, std::ranges::range R2,
               typename T1 = std::ranges::range_value_t<R1>, typename T2 = std::ranges::range_value_t<R2>>
-    IF_STATIC inline void fill_range_from(R1& range, const R2& from) noexcept
         requires std::same_as<T1, T2> || std::convertible_to<T2, T1>
-    {
+    IF_STATIC inline void fill_range_from(R1& range, R2&& from) noexcept {
         if (not std::ranges::empty(from))
             std::ranges::for_each(range, [&](auto& elem) { elem = get_elem(from); });
     }
@@ -113,8 +109,8 @@ class Random_t {
         return vec;
     }
 
-    [[nodiscard]] IF_STATIC inline bool get_bool() noexcept {
-        return from_zero_to<int>(1) == 0;
+    [[nodiscard]] IF_STATIC inline PURE_AUTO get_bool() noexcept {
+        return static_cast<bool>(from_zero_to(1));
     }
 };
 

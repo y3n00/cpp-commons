@@ -61,8 +61,8 @@ static void test_random_api() {
     const auto random_string = rand.get_string(10);    // random string, woohoo, like a firework!
     fmt::print("random string: {}\n", random_string);  // read it and weep, like a sad puppy!
 
-    fmt::println("random integer in [-128, 127]: {}", rand.from_range<int8_t>());      // random int, yay, like a kid on christmas!
-    fmt::println("random float in [0.0, 1.0]: {}", rand.from_range<float>(0.0, 1.0));  // random float, oh yeah, like a boss!
+    fmt::println("random integer in [-128, 127]: {}", rand.in_range<int8_t>());      // random int, yay, like a kid on christmas!
+    fmt::println("random float in [0.0, 1.0]: {}", rand.in_range<float>(0.0, 1.0));  // random float, oh yeah, like a boss!
 
     std::vector<int> vec = {1, 2, 3, 4, 5};                     // the original gang, aka the cool kids
     rand.shuffle_range(vec);                                    // shuffle it like it's hot, like a dance party!
@@ -87,7 +87,10 @@ static void test_random_api() {
     // rand.fill_range_from(strings, floats);
     std::vector<int> ints(10);
     rand.fill_range_from(ints, floats);
-    fmt::print("filled range from: {}\n", fmt::join(ints, ", "));
+    fmt::println("filled range from: {}", fmt::join(ints, ", "));
+
+    for (size_t i = 0; i < 10; i++)
+        fmt::println("{}", rand.get_bool());   
 }
 
 int main() {
