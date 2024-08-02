@@ -5,6 +5,8 @@
 #include <fmt/ranges.h>
 
 #include <iostream>
+#include <list>
+#include <set>
 
 #define RANDOM_STATIC
 #include "../console_colors.hpp"
@@ -72,10 +74,10 @@ static void test_random_api() {
     rand.fill_range(vec2, 0, 255);                            // fill 'er up, like a gas tank!
     fmt::print("filled range: {}\n", fmt::join(vec2, ", "));  // check it out, like a detective!
 
-    std::vector<int> from_vec = {1, 2, 3, 4, 5};                     // the source, aka the original recipe
-    std::vector<int> to_vec(5);                                      // the destination, aka the copycat
-    rand.fill_range_from(to_vec, from_vec);                          // copy cat, like a xerox machine!
-    fmt::print("filled range from: {}\n", fmt::join(to_vec, ", "));  // the result, aka the clone!
+    std::set<int> from_set = {1, 2, 3, 4, 5};                         // the source, aka the original recipe
+    std::list<int> to_list(5);                                        // the destination, aka the copycat
+    rand.fill_range_from(to_list, from_set);                          // copy cat, like a xerox machine!
+    fmt::print("filled range from: {}\n", fmt::join(to_list, ", "));  // the result, aka the clone!
 
     // std::vector<std::string> strings(10); failed
     // rand.fill_range(strings);
