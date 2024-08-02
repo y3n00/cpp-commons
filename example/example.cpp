@@ -16,13 +16,12 @@
 
 static void test_timer() {
     std::cout << cliColors::ColorTxt::Colorize("[testing timer]", cliColors::Colors::red) << '\n';  // omg timer is watching u!!!
-
-    static BenchTimer<Measurements::ms> global_timer;  // timer overlord ftw
-    constexpr u16 max_length = 20, step = 5;           // cuz who needs more than 20, amirite?
+    static BenchTimer<Measurements::ms> global_timer;                                               // timer overlord ftw
+    constexpr u16 max_length = 20, step = 5;                                                        // cuz who needs more than 20, amirite?
 
     for (auto current_len = max_length; current_len > 0; current_len -= step) {
-        const auto& title_fmt = std::format("length: {}", current_len);  // size matters, duh!
-        Timer_Wrapper tw{global_timer.add(title_fmt)};                   // wrap it up like a burrito!
+        const auto& title_fmt = std::format("length {}", current_len);  // size matters, duh!
+        Timer_Wrapper tw{global_timer.add(title_fmt)};                  // wrap it up like a burrito!
 
         const auto& str = Random_t::get_string(current_len);  // random string party like it's 1999!
         for (const auto& color : cliColors::getAllColors()) {
@@ -39,7 +38,6 @@ static void test_timer() {
 
 static void test_random() {
     std::cout << cliColors::ColorTxt::Colorize("[testing random]", cliColors::Colors::red) << '\n';  // random incoming, hide your kids!
-
     u32 inp;
     std::cout << "enter size of vector: ";  // how big do u want it, bro?
     (std::cin >> inp).get();                // don't be shy, come on!
@@ -47,7 +45,7 @@ static void test_random() {
     const auto vec = Random_t::get_vector<i32>(inp);                                                     // random vector magic, abracadabra!
     fmt::println("vector<i32> with size: {}\nof random values {}\n", vec.size(), fmt::join(vec, ", "));  // ta-da, like a boss!
 
-    const auto arr = Random_t::get_array<f32, 10>();                                                    // random array party, woohoo!
+    const auto arr = Random_t::get_array<f32, 10>(-10.f, 10.f);                                         // random array party, woohoo!
     fmt::println("array<f32> with size: {}\nof random values {}\n", arr.size(), fmt::join(arr, ", "));  // woohoo, indeed!
 }
 
@@ -81,6 +79,15 @@ static void test_random_api() {
 
     // std::vector<std::string> strings(10); failed
     // rand.fill_range(strings);
+
+    auto floats = rand.get_vector<float>(10, 5.f, 10.f);
+    fmt::print("random floats: {}\n", fmt::join(floats, ", "));
+
+    // std::vector<std::string> strings(10); failed
+    // rand.fill_range_from(strings, floats);
+    std::vector<int> ints(10);
+    rand.fill_range_from(ints, floats);
+    fmt::print("filled range from: {}\n", fmt::join(ints, ", "));
 }
 
 int main() {
