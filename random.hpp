@@ -76,7 +76,11 @@ class Random_t {
         std::ranges::for_each(range, [&](auto& elem) { elem = from_range<Num_t>(min_val, max_val); });
     }
 
-    IF_STATIC inline void fill_range_from(std::ranges::range auto& range, const std::ranges::range auto& from) noexcept {
+    template <std::ranges::range R1, std::ranges::range R2,
+              typename T1 = std::ranges::range_value_t<R1>, typename T2 = std::ranges::range_value_t<R2>>
+    IF_STATIC inline void fill_range_from(R1& range, const R2& from) noexcept
+        requires std::same_as<T1, T2> || std::convertible_to<T2, T1>
+    {
         if (not std::ranges::empty(from))
             std::ranges::for_each(range, [&](auto& elem) { elem = get_elem(from); });
     }
