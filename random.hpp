@@ -46,6 +46,7 @@ class Random_t {
 
    public:
     Random_t() = default;
+    Random_t(uint32_t seed) { gen.seed(seed); };
     Random_t(Random_t&&) = delete;
     Random_t(const Random_t&) = delete;
     Random_t& operator=(const Random_t&) = delete;
