@@ -58,7 +58,8 @@ class Random_t {
 
     template <Numeric_Type Num_Type>
     [[nodiscard]] IF_STATIC inline PURE_AUTO from_zero_to(MAX_LIMIT(Num_Type)) noexcept {
-        return in_range<Num_Type>(Num_Type{}, max_val);
+        constexpr static auto ZERO_VALUE = Num_Type{};
+        return in_range<Num_Type>(ZERO_VALUE, max_val);
     }
 
     [[nodiscard]] IF_STATIC inline PURE_AUTO get_elem(std::ranges::range auto&& range) noexcept {
@@ -111,7 +112,7 @@ class Random_t {
     }
 
     [[nodiscard]] IF_STATIC inline PURE_AUTO get_bool() noexcept {
-        return static_cast<bool>(from_zero_to(1));
+        return from_zero_to<bool>();
     }
 };
 
