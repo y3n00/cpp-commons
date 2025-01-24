@@ -38,6 +38,69 @@ namespace cliColors {
         _default = 39,
     };
 
+    Colors& operator++(Colors& color) {
+        switch (color) {
+            case Colors::reset:
+                color = Colors::black;
+                break;
+            case Colors::black:
+                color = Colors::red;
+                break;
+            case Colors::red:
+                color = Colors::green;
+                break;
+            case Colors::green:
+                color = Colors::yellow;
+                break;
+            case Colors::yellow:
+                color = Colors::blue;
+                break;
+            case Colors::blue:
+                color = Colors::purple;
+                break;
+            case Colors::purple:
+                color = Colors::cyan;
+                break;
+            case Colors::cyan:
+                color = Colors::gray;
+                break;
+            case Colors::gray:
+                color = Colors::brightgray;
+                break;
+            case Colors::brightgray:
+                color = Colors::brightred;
+                break;
+            case Colors::brightred:
+                color = Colors::brightgreen;
+                break;
+            case Colors::brightgreen:
+                color = Colors::lightblue;
+                break;
+            case Colors::lightblue:
+                color = Colors::magenta;
+                break;
+            case Colors::magenta:
+                color = Colors::lightcyan;
+                break;
+            case Colors::lightcyan:
+                color = Colors::white;
+                break;
+            case Colors::white:
+                color = Colors::_default;
+                break;
+            case Colors::_default:
+                color = Colors::reset;
+                break;
+        }
+        return color;
+    }
+
+    Colors operator++(Colors& color, int) {
+        Colors temp = color;
+        ++color;
+        return temp;
+    }
+
     [[nodiscard]] constexpr auto getAllColors() {
         constexpr auto colors = std::to_array({
             Colors::reset,
@@ -62,9 +125,11 @@ namespace cliColors {
     }
 
     namespace ColorTxt {
-        [[nodiscard]] constexpr auto Reset() { return std::string_view{"\x1b[0m"}; }
+        [[nodiscard]] inline constexpr std::string_view Reset() noexcept {
+            return "\x1b[0m";
+        }
 
-        [[nodiscard]] std::string Colorize(const std::string& str, Colors c) {
+        [[nodiscard]] inline std::string Colorize(std::string_view str, Colors c) {
             return _FMT::format("\x1b[1;{}m{}{}", std::to_underlying(c), str, Reset());
         }
     }  // namespace ColorTxt
