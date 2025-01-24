@@ -1,6 +1,8 @@
 #pragma once
+
 #include <algorithm>
 #include <chrono>
+#include <concepts>
 #include <execution>
 #include <ranges>
 #include <string>
@@ -31,53 +33,57 @@ class Timer {
     Timer& operator=(const Timer& other) = default;
     Timer& operator=(Timer&& other) noexcept = default;
 
-    [[nodiscard]] decltype(auto) start_timestamp() const noexcept { return m_start; }
+    [[nodiscard]] auto start_timestamp() const noexcept { return m_start; }
 
-    [[nodiscard]] decltype(auto) stop_timestamp() const noexcept { return m_stop; }
+    [[nodiscard]] auto stop_timestamp() const noexcept { return m_stop; }
 
-    [[nodiscard]] decltype(auto) all_timestamps() const {
+    [[nodiscard]] auto all_timestamps() const {
         return m_timestamps |
                std::views::transform([](const auto& ns) { return std::chrono::duration_cast<M>(ns); }) |
                std::ranges::to<std::vector>();
     }
 
-    [[nodiscard]] decltype(auto) get_duration() const noexcept {
+    [[nodiscard]] auto get_duration() const noexcept {
         const auto duration = (is_running ? Clock_Type::now() : m_stop) - m_start;
         return std::chrono::duration<double, typename M::period>(duration);
     }
 
-    void reset() noexcept {
+    inline void reset() noexcept {
         is_running = false;
         m_start = {};
         m_stop = {};
         m_timestamps.clear();
     }
 
-    void start() noexcept {
+    inline void start() noexcept {
         reset();
         m_timestamps.emplace_back(0);
         m_start = Clock_Type::now();
         is_running = true;
     }
 
-    void stop() noexcept {
+    inline void stop() noexcept {
         if (!is_running) [[unlikely]]
             return;
-        timestamp();
+        _make_timestamp();
         m_stop = Clock_Type::now();
         is_running = false;
     }
 
-    void timestamp() noexcept {
+    inline void timestamp() noexcept {
         if (!is_running) [[unlikely]]
             return;
-        m_timestamps.emplace_back(Clock_Type::now() - m_start);
+        _make_timestamp();
     }
 
    private:
     bool is_running = false;
     Time_Point m_start = {}, m_stop = {};
     std::vector<Measurements::ns> m_timestamps;
+
+    inline void _make_timestamp() {
+        m_timestamps.emplace_back(Clock_Type::now() - m_start);
+    }
 };
 
 template <Measurement M>
@@ -104,7 +110,7 @@ class BenchTimer {
             it->second.timestamp();
     }
 
-    [[nodiscard]] decltype(auto) get_all() const noexcept { return m_timers; }
+    [[nodiscard]] const auto& get_all() const noexcept { return m_timers; }
 
     void remove(const std::string& title) noexcept { m_timers.erase(title); }
 
@@ -112,24 +118,24 @@ class BenchTimer {
 
    private:
     TimerMap m_timers;
-    void process_map(auto&& func) noexcept {
-        auto&& timers = m_timers | std::views::values;
-        std::ranges::for_each(timers, func);
+
+    inline void process_map(auto&& func) noexcept {
+        std::ranges::for_each(m_timers | std::views::values, func);
     }
 };
 
 template <Measurement M>
-class Timer_Wrapper {
+class ScopeTimer {
     using Timer_t = Timer<M>;
 
    public:
-    explicit Timer_Wrapper(Timer_t& timer) noexcept : m_timer(timer) { m_timer.start(); }
-    ~Timer_Wrapper() noexcept { m_timer.stop(); }
+    explicit ScopeTimer(Timer_t& timer) noexcept : m_timer(timer) { m_timer.start(); }
+    ~ScopeTimer() noexcept { m_timer.stop(); }
 
-    Timer_Wrapper(const Timer_Wrapper&) = delete;
-    Timer_Wrapper& operator=(const Timer_Wrapper&) = delete;
-    Timer_Wrapper(Timer_Wrapper&&) = delete;
-    Timer_Wrapper& operator=(Timer_Wrapper&&) = delete;
+    ScopeTimer(const ScopeTimer&) = delete;
+    ScopeTimer& operator=(const ScopeTimer&) = delete;
+    ScopeTimer(ScopeTimer&&) = delete;
+    ScopeTimer& operator=(ScopeTimer&&) = delete;
 
    private:
     Timer_t& m_timer;
