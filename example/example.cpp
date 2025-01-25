@@ -23,19 +23,19 @@ static inline void run_times(size_t count, auto&& f, Args&&... args) {
     }
 }
 
-#pragma optimize("", off)  // cuz compiler optimize unused generated strings
+#pragma optimize("", off)
 static void test_timer() {
     print_title("[testing timer]");
 
-    BenchTimer<Measurements::ms> global_timer;  // timer overlord ftw
-    int16_t curr_length = 10000, step = 100;    // cuz who needs more than 20, amirite?
+    BenchTimer<Measurements::ms> global_timer;
+    int16_t curr_length = 10000, step = 100;
     {
-        ScopeTimer _{global_timer.add("Total time")};  // wrap it up like a burrito!
+        ScopeTimer _{global_timer.add("Total time")};
 
         for (; curr_length > 0; curr_length -= step) {
-            const auto title = std::format("length {}", curr_length);  // size matters, duh!
-            ScopeTimer _{global_timer.add(title)};                     // wrap it up like a burrito!
-            const auto& str = Random_t::get_string(curr_length);       // random string party like it's 1999!
+            const auto title = std::format("length {}", curr_length);
+            ScopeTimer _{global_timer.add(title)};
+            const auto& str = Random_t::get_string(curr_length);
         }
 
         {
@@ -47,7 +47,7 @@ static void test_timer() {
     }
 
     for (const auto& [title, timer] : global_timer.get_all()) {
-        std::println("{}:\t{}", title, timer.get_duration());  // timer's verdict: guilty of being awesome!
+        std::println("{}:\t{}", title, timer.get_duration());
     }
 }
 #pragma optimize("", on)
@@ -55,29 +55,29 @@ static void test_timer() {
 static void test_random_api(bool by_same_seed = true) {
     print_title("[testing random api]");
 
-    auto rand = by_same_seed ? Random_t{1337} : Random_t{};  // random master, aka the boss
+    auto rand = by_same_seed ? Random_t{1337} : Random_t{};
 
-    std::println("random numbers: {}", rand.get_numeric_vector<uint32_t>(10, 0, 1000));  // look at them go, like a hot knife through butter!
+    std::println("random numbers: {}", rand.get_numeric_vector<uint32_t>(10, 0, 1000));
 
-    std::println("random bytes: {}", rand.get_numeric_array<uint8_t, 16>() | std::views::transform([](auto i) { return std::format("{:#04x}", i); }));  // hexy time, baby!
+    std::println("random bytes: {}", rand.get_numeric_array<uint8_t, 16>() | std::views::transform([](auto i) { return std::format("{:#04x}", i); }));
 
-    std::println("random string: {}", rand.get_string(10));  // read it and weep, like a sad puppy!
+    std::println("random string: {}", rand.get_string(10));
 
-    std::println("random integer in [-128, 127]: {}", rand.in_range<int8_t>());      // random int, yay, like a kid on christmas!
-    std::println("random float in [0.0, 1.0]: {}", rand.in_range<float>(0.0, 1.0));  // random float, oh yeah, like a boss!
+    std::println("random integer in [-128, 127]: {}", rand.in_range<int8_t>());
+    std::println("random float in [0.0, 1.0]: {}", rand.in_range<float>(0.0, 1.0));
 
-    std::vector<int> vec = {1, 2, 3, 4, 5};    // the original gang, aka the cool kids
-    rand.shuffle_range(vec);                   // shuffle it like it's hot, like a dance party!
-    std::println("shuffled vector: {}", vec);  // look at them now, like a proud parent!
+    std::vector<int> vec = {1, 2, 3, 4, 5};
+    rand.shuffle_range(vec);
+    std::println("shuffled vector: {}", vec);
 
-    std::vector<int> vec2(10);               // the new kids, aka the freshmen
-    rand.fill_range(vec2, 0, 255);           // fill 'er up, like a gas tank!
-    std::println("filled range: {}", vec2);  // check it out, like a detective!
+    std::vector<int> vec2(10);
+    rand.fill_range(vec2, 0, 255);
+    std::println("filled range: {}", vec2);
 
-    std::set<int> from_set = {1, 2, 3, 4, 5};        // the source, aka the original recipe
-    std::list<int> to_list(5);                       // the destination, aka the copycat
-    rand.fill_range_from(to_list, from_set);         // copy cat, like a xerox machine!
-    std::println("filled range from: {}", to_list);  // the result, aka the clone!
+    std::set<int> from_set = {1, 2, 3, 4, 5};
+    std::list<int> to_list(5);
+    rand.fill_range_from(to_list, from_set);
+    std::println("filled range from: {}", to_list);
 
     auto floats = rand.get_numeric_vector<float>(10, 5.f, 10.f);
     std::println("random floats: {}", floats);
@@ -262,7 +262,7 @@ random float in [0.0, 1.0]: 0.38106865
 shuffled vector: [4, 2, 3, 5, 1]
 filled range: [48, 121, 73, 221, 171, 103, 127, 112, 45, 36]
 filled range from: [3, 5, 1, 5, 3]
-random floats: [9.6420355, 9.161854, 8.097736, 5.9262547, 9.787113, 9.786796, 9.405002, 7.1270733, 9.067889, 7.520035]
+random floats: [9.6420355,
 filled range from: [9, 9, 9, 9, 9, 7, 9, 7, 9, 9]
 10 random bools [false, false, false, false, true, true, true, false, true, false]
 
