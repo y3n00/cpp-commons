@@ -19,9 +19,9 @@ namespace Measurements {
 }  // namespace Measurements
 
 template <typename M>
-concept Measurement = std::chrono::_Is_duration_v<M>;
+concept TimeMeasure_t = std::chrono::_Is_duration_v<M>;
 
-template <Measurement M>
+template <TimeMeasure_t M>
 class Timer {
     using Clock_Type = std::chrono::steady_clock;
     using Time_Point = std::chrono::time_point<Clock_Type>;
@@ -38,9 +38,7 @@ class Timer {
     [[nodiscard]] auto stop_timestamp() const noexcept { return m_stop; }
 
     [[nodiscard]] auto all_timestamps() const {
-        return m_timestamps |
-               std::views::transform([](const auto& ns) { return std::chrono::duration_cast<M>(ns); }) |
-               std::ranges::to<std::vector>();
+        return m_timestamps;
     }
 
     [[nodiscard]] auto get_duration() const noexcept {
@@ -50,14 +48,12 @@ class Timer {
 
     inline void reset() noexcept {
         is_running = false;
-        m_start = {};
-        m_stop = {};
+        m_start = m_stop = {};
         m_timestamps.clear();
     }
 
     inline void start() noexcept {
         reset();
-        m_timestamps.emplace_back(0);
         m_start = Clock_Type::now();
         is_running = true;
     }
@@ -86,7 +82,7 @@ class Timer {
     }
 };
 
-template <Measurement M>
+template <TimeMeasure_t M>
 class BenchTimer {
     using Timer_t = Timer<M>;
     using TimerMap = std::unordered_map<std::string, Timer_t>;
@@ -105,8 +101,7 @@ class BenchTimer {
     }
 
     void make_timestamp(const std::string& title) noexcept {
-        auto it = m_timers.find(title);
-        if (it != m_timers.end() && it->second.is_running)
+        if (auto it = m_timers.find(title); it != m_timers.end() && it->second.is_running)
             it->second.timestamp();
     }
 
@@ -124,7 +119,7 @@ class BenchTimer {
     }
 };
 
-template <Measurement M>
+template <TimeMeasure_t M>
 class ScopeTimer {
     using Timer_t = Timer<M>;
 

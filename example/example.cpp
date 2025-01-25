@@ -13,7 +13,8 @@
 #include "../timer.hpp"
 
 static inline auto print_title(std::string_view title) {
-    std::println("\n{}", cliColors::ColorTxt::Colorize(title, Random_t::get_elem(cliColors::getAllColors())));
+    static cliColors::Colors color = cliColors::Colors::red;
+    std::println("\n{}", cliColors::ColorTxt::Colorize(title, color++));
 }
 
 template <typename... Args>
