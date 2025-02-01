@@ -30,7 +30,7 @@ class Random_t {
     using real_dist = std::uniform_real_distribution<R>;
 
    private:
-    VARIABLE_TYPE std::mt19937 gen{std::random_device{}()};
+    VARIABLE_TYPE std::mt19937_64 gen{std::random_device{}()};
 
     template <Numeric_Type Num_Type>
     [[nodiscard]] constexpr AUTO_SIGNATURE get_distribution(MIN_LIMIT(Num_Type), MAX_LIMIT(Num_Type)) noexcept {
@@ -44,7 +44,7 @@ class Random_t {
 
    public:
     Random_t() = default;
-    Random_t(uint32_t seed) { gen.seed(seed); };
+    Random_t(size_t seed) { gen.seed(seed); };
     Random_t(Random_t&&) = delete;
     Random_t(const Random_t&) = delete;
     Random_t& operator=(const Random_t&) = delete;
