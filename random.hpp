@@ -19,8 +19,8 @@
 template <typename T>
 concept Numeric_Type = std::is_arithmetic_v<T>;
 
-#define MAX_LIMIT(T) T max_val = (std::numeric_limits<T>::max())
-#define MIN_LIMIT(T) T min_val = (std::numeric_limits<T>::min())
+#define MAX_LIMIT(T) T max_val = ((std::numeric_limits<T>::max)())
+#define MIN_LIMIT(T) T min_val = ((std::numeric_limits<T>::min)())
 
 class Random_t {
     template <std::integral I>
