@@ -19,8 +19,12 @@
 template <typename T>
 concept Numeric_Type = std::is_arithmetic_v<T>;
 
-#define MAX_LIMIT(T) T max_val = ((std::numeric_limits<T>::max)())
-#define MIN_LIMIT(T) T min_val = ((std::numeric_limits<T>::min)())
+#define CREATE_LIMIT(T, name, val) T name = ((std::numeric_limits<T>::val)())
+
+#define MIN_MAX_LIMIT(T, op) CREATE_LIMIT(T, op##_val, op)
+
+#define MAX_LIMIT(T) MIN_MAX_LIMIT(T, max)
+#define MIN_LIMIT(T) MIN_MAX_LIMIT(T, min)
 
 class Random_t {
     template <std::integral I>
@@ -44,7 +48,7 @@ class Random_t {
 
    public:
     Random_t() = default;
-    Random_t(size_t seed) { gen.seed(seed); };
+    Random_t(size_t seed) noexcept { gen.seed(seed); };
     Random_t(Random_t&&) = delete;
     Random_t(const Random_t&) = delete;
     Random_t& operator=(const Random_t&) = delete;
@@ -56,8 +60,7 @@ class Random_t {
 
     template <Numeric_Type Num_Type>
     [[nodiscard]] AUTO_SIGNATURE from_zero_to(MAX_LIMIT(Num_Type)) noexcept {
-        constexpr static auto ZERO_VALUE = Num_Type{};
-        return in_range<Num_Type>(ZERO_VALUE, max_val);
+        return in_range<Num_Type>({}, max_val);
     }
 
     [[nodiscard]] AUTO_SIGNATURE get_elem(std::ranges::range auto&& range) noexcept {
@@ -92,7 +95,7 @@ class Random_t {
     }
 
     [[nodiscard]] AUTO_SIGNATURE get_string(size_t str_len, std::string extra_chars = "") noexcept -> std::string {
-        constexpr std::string_view basic_symbols =
+        constexpr static std::string_view basic_symbols =
             "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
             "abcdefghijklmnopqrstuvwxyz"
             "1234567890";
@@ -123,19 +126,31 @@ class Random_t {
     }
 
     template <Numeric_Type len_t = uint8_t>  // foolproofing
-    [[nodiscard]] AUTO_SIGNATURE get_string_vec(size_t size, MIN_LIMIT(len_t), MAX_LIMIT(len_t), std::string extra_chars = "") noexcept {
+    [[nodiscard]] AUTO_SIGNATURE get_string_vec(size_t size,
+                                                CREATE_LIMIT(len_t, min_str_length, min),
+                                                CREATE_LIMIT(len_t, max_str_length, max),
+                                                std::string extra_chars = "") noexcept {
         std::vector<std::string> vec(size);
-        fill_range(vec, min_val, max_val, std::move(extra_chars));
+        fill_range(vec, min_str_length, max_str_length, std::move(extra_chars));
         return vec;
     }
 
     [[nodiscard]] AUTO_SIGNATURE get_bool() noexcept {
         return from_zero_to<bool>();
     }
+
+    [[nodiscard]] AUTO_SIGNATURE chance_probability(double prob) noexcept {
+        return std::bernoulli_distribution{std::clamp<double>(prob, 0.f, 1.f)}(gen);
+    }
+
+    [[nodiscard]] AUTO_SIGNATURE chance_percent(double percent) noexcept {
+        return chance_probability(percent / 100);
+    }
 };
 
 #undef AUTO_SIGNATURE
 #undef VARIABLE_TYPE
+#undef CREATE_LIMIT
+#undef MIN_MAX_LIMIT
 #undef MAX_LIMIT
 #undef MIN_LIMIT
-#undef PURE_AUTO
