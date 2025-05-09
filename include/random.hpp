@@ -1,7 +1,8 @@
-#pragma once
+﻿#pragma once
 
 #include <array>
 #include <concepts>
+#include <functional>
 #include <limits>
 #include <random>
 #include <ranges>
@@ -32,9 +33,9 @@ namespace API_Random
 	 * @tparam T The type to check
 	 */
 	template <typename T>
-	concept IsString = std::is_same_v<T, std::string>;
+	concept IsStringoid = std::is_convertible_v<T, std::string_view>;
 
-	using string_gen_pred = std::function<bool(uint8_t)>;
+	using StringGenPredicate = std::function<decltype(isalnum)>;
 
 	/**
 	 * @brief Concept that checks if the type is suitable for generating string
@@ -43,7 +44,7 @@ namespace API_Random
 	 * @tparam T The type to check
 	 */
 	template <typename T>
-	concept StringGeneraionType = std::is_convertible_v<T, std::string> || std::is_convertible_v<T, string_gen_pred>;
+	concept StringGeneraionType = IsStringoid<T> || std::is_convertible_v<T, StringGenPredicate>;
 } // namespace API_Random
 
 /**
@@ -101,11 +102,17 @@ class Random_t
 	[[nodiscard]] constexpr AUTO_SIGNATURE get_distribution(MIN_LIMIT(Num_Type), MAX_LIMIT(Num_Type))
 	{
 		if constexpr (std::is_floating_point_v<Num_Type>)
+		{
 			return real_dist<Num_Type>{min_val, max_val};
-		else if constexpr (sizeof(Num_Type) == 1)		// cant use 1 byte types on msvc
-			return int_dist<int16_t>{min_val, max_val}; // int16_t covers all numeric limits of 1 byte types
+		}
+		else if constexpr (sizeof(Num_Type) == 1)
+		{
+			return int_dist<int16_t>{min_val, max_val}; // cant use 1 byte types on msvc
+		}
 		else
+		{
 			return int_dist<Num_Type>{min_val, max_val};
+		}
 	}
 
   public:
@@ -121,11 +128,11 @@ class Random_t
 		gen.seed(seed);
 	}
 
-	Random_t() = default;
-	Random_t(Random_t&&) = default;
+	Random_t()						= default;
+	Random_t(Random_t&&)			= default;
 	Random_t& operator=(Random_t&&) = default;
 
-	Random_t(const Random_t&) = delete;
+	Random_t(const Random_t&)			 = delete;
 	Random_t& operator=(const Random_t&) = delete;
 
 	~Random_t() = default;
@@ -198,8 +205,8 @@ class Random_t
 	 */
 	[[nodiscard]] AUTO_SIGNATURE get_elem(std::ranges::range auto&& range)
 	{
+		auto	   it		= std::ranges::begin(range);
 		const auto last_idx = std::ranges::distance(range) - 1;
-		auto it = std::ranges::begin(range);
 		std::ranges::advance(it, from_zero_to(last_idx));
 
 		return *it;
@@ -232,19 +239,19 @@ class Random_t
 	 * @param gen The chars or predicate for string generation
 	 */
 	template <std::ranges::range R, API_Random::StringGeneraionType Gen, std::unsigned_integral Length_Type = uint8_t>
-		requires API_Random::IsString<std::ranges::range_value_t<R>>
+		requires API_Random::IsStringoid<std::ranges::range_value_t<R>>
 	AUTO_SIGNATURE fill_range(R& range, Length_Type min_len, Length_Type max_len, Gen&& gen) -> void
 	{
-		if constexpr (std::is_convertible_v<Gen, API_Random::string_gen_pred>)
+		if constexpr (std::is_convertible_v<Gen, API_Random::StringGenPredicate>)
 		{
-			std::ranges::generate(range, [&, pred = API_Random::string_gen_pred(std::move(gen))] {
-				return get_string_pred(in_range(min_len, max_len), pred);
+			std::ranges::generate(range, [&, pred = API_Random::StringGenPredicate(std::move(gen))] {
+				return get_string_by_pred(in_range(min_len, max_len), pred);
 			});
 		}
 		else
 		{
 			std::ranges::generate(range, [&, view = std::string_view(gen)] {
-				return get_string_chars(in_range(min_len, max_len), view);
+				return get_string_from_chars(in_range(min_len, max_len), view);
 			});
 		}
 	}
@@ -274,15 +281,15 @@ class Random_t
 	 * @brief Generate an array of random numbers within specified limits
 	 *
 	 * @tparam T The numeric type of the array elements
-	 * @tparam SZ The size of the array
+	 * @tparam Count The size of the array
 	 * @param min_val The minimum value (inclusive)
 	 * @param max_val The maximum value (inclusive)
 	 * @return An array of random numbers
 	 */
-	template <API_Random::Numeric_Type T, size_t SZ>
-	[[nodiscard]] AUTO_SIGNATURE get_array(MIN_LIMIT(T), MAX_LIMIT(T)) -> std::array<T, SZ>
+	template <API_Random::Numeric_Type T, size_t Count>
+	[[nodiscard]] AUTO_SIGNATURE get_array(MIN_LIMIT(T), MAX_LIMIT(T)) -> std::array<T, Count>
 	{
-		std::array<T, SZ> arr;
+		std::array<T, Count> arr;
 		fill_range(arr, min_val, max_val);
 
 		return arr;
@@ -292,19 +299,19 @@ class Random_t
 	 * @brief Generate an array of random strings based on specified criteria
 	 *
 	 * @tparam T The string type of the array elements
-	 * @tparam SZ The size of the array
+	 * @tparam Count The size of the array
 	 * @tparam Length_Type The type for the length of the strings
 	 * @param gen The chars or predicate for string generation
 	 * @param min_str_length The minimum length of the strings
 	 * @param max_str_length The maximum length of the strings
 	 * @return An array of random strings
 	 */
-	template <API_Random::IsString T, size_t SZ, std::unsigned_integral Length_Type>
+	template <API_Random::IsStringoid T, size_t Count, std::unsigned_integral Length_Type = uint8_t>
 	[[nodiscard]] AUTO_SIGNATURE get_array(API_Random::StringGeneraionType auto&& gen,
 										   CREATE_LIMIT(Length_Type, min_str_length, min),
-										   CREATE_LIMIT(Length_Type, max_str_length, max)) -> std::array<T, SZ>
+										   CREATE_LIMIT(Length_Type, max_str_length, max)) -> std::array<T, Count>
 	{
-		std::array<T, SZ> arr;
+		std::array<T, Count> arr;
 		fill_range(arr, min_str_length, max_str_length, std::move(gen));
 
 		return arr;
@@ -338,9 +345,8 @@ class Random_t
 	 * @param max_str_length The maximum length of the strings
 	 * @return A vector of random strings
 	 */
-	template <API_Random::IsString T, std::unsigned_integral Length_Type>
-	[[nodiscard]] AUTO_SIGNATURE get_vector(size_t size,
-											API_Random::StringGeneraionType auto&& gen,
+	template <API_Random::IsStringoid T, std::unsigned_integral Length_Type = uint8_t>
+	[[nodiscard]] AUTO_SIGNATURE get_vector(size_t size, API_Random::StringGeneraionType auto&& gen,
 											CREATE_LIMIT(Length_Type, min_str_length, min),
 											CREATE_LIMIT(Length_Type, max_str_length, max)) -> std::vector<T>
 	{
@@ -367,7 +373,7 @@ class Random_t
 	 * @param symbols The symbols to use for generating the string
 	 * @return A random string composed of the specified symbols
 	 */
-	[[nodiscard]] AUTO_SIGNATURE get_string_chars(size_t str_len, const std::string_view symbols) -> std::string
+	[[nodiscard]] AUTO_SIGNATURE get_string_from_chars(size_t str_len, const std::string_view symbols) -> std::string
 	{
 		std::string result(str_len, '\0');
 		fill_range_from(result, symbols);
@@ -382,9 +388,9 @@ class Random_t
 	 * @param pred The predicate function to filter symbols
 	 * @return A random string composed of symbols that satisfy the predicate
 	 */
-	[[nodiscard]] AUTO_SIGNATURE get_string_pred(size_t str_len, const API_Random::string_gen_pred& pred) -> std::string
+	[[nodiscard]] AUTO_SIGNATURE get_string_by_pred(size_t str_len, const API_Random::StringGenPredicate& pred) -> std::string
 	{
-		auto symbols = std::views::iota(CHAR_MIN, CHAR_MAX + 1) | std::views::filter(pred);
+		auto symbols = std::views::iota(0, 256) | std::views::filter(pred);
 
 		std::string result(str_len, '\0');
 		fill_range_from(result, symbols);
@@ -400,7 +406,7 @@ class Random_t
 	 */
 	[[nodiscard]] AUTO_SIGNATURE get_string(size_t str_len) -> std::string
 	{
-		return get_string_pred(str_len, isalnum);
+		return get_string_by_pred(str_len, isalnum);
 	}
 };
 

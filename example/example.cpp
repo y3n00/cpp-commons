@@ -13,7 +13,7 @@
 #include "../timer.hpp"
 
 static inline auto print_title(std::string_view title) {
-    static cliColors::Colors color = cliColors::Colors::red;
+    static cliColors::EColors color = cliColors::EColors::red;
     std::println("\n{}", cliColors::ColorTxt::Colorize(title, color++));
 }
 
@@ -40,10 +40,11 @@ static void test_timer() {
         }
 
         {
-            constexpr static auto vec_sz = static_cast<size_t>(10000);
-            const auto title = std::format("generation {} random strings", vec_sz);
+            constexpr static size_t vec_sz = 10000;
+            static const auto title = std::format("generation {} random strings", vec_sz);
+
             ScopeTimer _{global_timer.add(title)};
-            static const auto& vec_of_strings = Random_t::get_string_vec(vec_sz);
+            static const auto& vec_of_strings = Random_t::get_string_vector(vec_sz);
         }
     }
 
@@ -94,7 +95,7 @@ static void check_color_inc() noexcept {
     using namespace cliColors;
     print_title("[testing color increment]");
 
-    Colors color = Colors::black;
+    EColors color = EColors::black;
     constexpr auto msg = std::string_view{"hello world"};
     for (size_t i = 0; i < 30; i++) {
         std::println("{}", ColorTxt::Colorize(msg, color++));
@@ -292,37 +293,4 @@ filled range from: [3, 5, 1, 5, 3]
 random floats: [9.6420355, 9.161854, 8.097736, 5.9262547, 9.787113, 9.786796, 9.405002, 7.1270733, 9.067889, 7.520035]
 filled range from: [9, 9, 9, 9, 9, 7, 9, 7, 9, 9]
 10 random bools [false, false, false, false, true, true, true, false, true, false]
-
-[testing color increment]
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-hello world
-
 */
