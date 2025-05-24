@@ -262,7 +262,7 @@ namespace Input
 
 	namespace Platform
 	{
-		int getch(bool echo) noexcept
+		char getch(bool echo) noexcept
 		{
 #ifdef _WIN32
 			return _getch();
@@ -288,18 +288,17 @@ namespace Input
 		}
 	} // namespace Platform
 
-	template <typename T, Mode mode = Mode::Plain>
-		requires std::is_arithmetic_v<T> || std::is_same_v<T, std::string>
-	[[nodiscard]] T read(size_t input_length = SIZE_MAX, char secret_char = '*', auto&& filter = std::isgraph)
+	template <typename ReturnType, Mode mode = Mode::Plain, typename Pred = decltype(isgraph)>
+		requires std::is_arithmetic_v<ReturnType> || std::is_same_v<ReturnType, std::string>
+	[[nodiscard]] ReturnType read(size_t input_length = SIZE_MAX, char secret_char = '*', Pred keys_filter = isgraph)
 	{
-		if constexpr (std::is_same_v<T, std::string>)
+		if constexpr (std::is_same_v<ReturnType, std::string>)
 		{
 			std::string buffer;
 
 			while (true)
 			{
-				const int  ch  = Platform::getch(mode == Mode::Plain);
-				const auto uch = static_cast<unsigned char>(ch);
+				const char  ch  = Platform::getch(mode == Mode::Plain);
 
 				if (ch == Constants::ENTER)
 				{
@@ -319,15 +318,15 @@ namespace Input
 					continue;
 				}
 
-				if (!filter(uch) || buffer.length() == input_length)
+				if (!keys_filter(ch) || buffer.length() == input_length)
 				{
 					std::cout << '\a';
 
 					continue;
 				}
 
-				buffer.push_back(static_cast<char>(uch));
-				std::cout << (mode == Mode::Password ? secret_char : uch);
+				buffer.push_back(ch);
+				std::cout << (mode == Mode::Password ? secret_char : ch);
 			}
 
 			return buffer;
@@ -338,7 +337,7 @@ namespace Input
 			constexpr static auto ignore	= std::bind_front(&std::istream::clear, &std::cin, ssize_max, '\n');
 			static_assert(mode == Mode::Plain, "password mode only available for string input");
 
-			T value;
+			ReturnType value;
 			while (true)
 			{
 				if (std::cin >> value)
