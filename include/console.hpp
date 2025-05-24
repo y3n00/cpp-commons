@@ -202,6 +202,7 @@ namespace Output
 
 	  public:
 		Text() = default;
+
 		explicit Text(std::string_view str, uint64_t style = 0)
 			: content(str), flags(style)
 		{
