@@ -46,22 +46,22 @@ class Console
 	{
 	  public:
 #ifdef _WIN32
-		inline static HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
-		inline static DWORD	 originalMode;
+		inline static HANDLE h_out = GetStdHandle(STD_OUTPUT_HANDLE);
+		inline static DWORD	 original_mode;
 #else
-		inline static termios originalTermios;
+		inline static termios original_termios;
 		inline static bool	  initialized = false;
 #endif
 
 		static void initialize() noexcept
 		{
 #ifdef _WIN32
-			GetConsoleMode(hOut, &originalMode);
-			SetConsoleMode(hOut, originalMode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+			GetConsoleMode(h_out, &original_mode);
+			SetConsoleMode(h_out, original_mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
 #else
 			if (!initialized)
 			{
-				tcgetattr(STDIN_FILENO, &originalTermios);
+				tcgetattr(STDIN_FILENO, &original_termios);
 				initialized = true;
 			}
 #endif
@@ -70,9 +70,9 @@ class Console
 		static void restore() noexcept
 		{
 #ifdef _WIN32
-			SetConsoleMode(hOut, originalMode);
+			SetConsoleMode(h_out, original_mode);
 #else
-			tcsetattr(STDIN_FILENO, TCSANOW, &originalTermios);
+			tcsetattr(STDIN_FILENO, TCSANOW, &original_termios);
 #endif
 		}
 
@@ -83,7 +83,7 @@ class Console
 			{
 #ifdef _WIN32
 				CONSOLE_SCREEN_BUFFER_INFO csbi;
-				GetConsoleScreenBufferInfo(Platform::hOut, &csbi);
+				GetConsoleScreenBufferInfo(Platform::h_out, &csbi);
 
 				return std::pair(
 					csbi.srWindow.Right - csbi.srWindow.Left + 1,
