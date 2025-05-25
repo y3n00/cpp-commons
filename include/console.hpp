@@ -352,7 +352,6 @@ namespace Input
 					return value;
 				}
 
-				std::cin.clear();
 				clear_and_ignore();
 			}
 		}
