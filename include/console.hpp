@@ -268,7 +268,7 @@ namespace Input
 #ifdef _WIN32
 			return _getch();
 #else
-			termios newt = Console::Platform::originalTermios;
+			termios newt = Console::Platform::original_termios;
 			newt.c_lflag &= ~ICANON;
 
 			if (echo)
@@ -282,7 +282,7 @@ namespace Input
 
 			tcsetattr(STDIN_FILENO, TCSANOW, &newt);
 			int ch = getchar();
-			tcsetattr(STDIN_FILENO, TCSANOW, &Console::Platform::originalTermios);
+			tcsetattr(STDIN_FILENO, TCSANOW, &Console::Platform::original_termios);
 
 			return ch;
 #endif
