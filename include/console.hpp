@@ -334,14 +334,13 @@ namespace Input
 		}
 		else
 		{
-			constexpr static auto ssize_max		   = (std::numeric_limits<std::streamsize>::max)();
-			auto				  clear_and_ignore = std::bind_front(
-				 [](std::istream& is) {
-					 is.clear();
-					 is.ignore(ssize_max, '\n');
-				 },
-				 std::ref(std::cin));
 			static_assert(mode == Mode::Plain, "password mode only available for string input");
+
+			constexpr static auto ssize_max		   = (std::numeric_limits<std::streamsize>::max)();
+			const static auto	  clear_and_ignore = [](std::istream& is = std::cin) {
+				is.clear();
+				is.ignore(ssize_max, '\n');
+			};
 
 			ReturnType value;
 			while (true)
