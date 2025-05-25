@@ -110,7 +110,7 @@ class Console
 
 	static void set_cursor(int row, int col) noexcept
 	{
-		std::cout << std::format("{};{}H", row, col);
+		std::cout << std::format("{}{};{}H", Console::Constants::CSI, row, col);
 	}
 
 	static void cursor_visibility(bool visible) noexcept
@@ -118,6 +118,7 @@ class Console
 		std::cout << (visible ? Constants::CURSOR_SHOW : Constants::CURSOR_HIDE);
 	}
 };
+
 namespace Output
 {
 	namespace Style
@@ -298,7 +299,7 @@ namespace Input
 
 			while (true)
 			{
-				const char  ch  = Platform::getch(mode == Mode::Plain);
+				const char ch = Platform::getch(mode == Mode::Plain);
 
 				if (ch == Constants::ENTER)
 				{
@@ -333,8 +334,13 @@ namespace Input
 		}
 		else
 		{
-			constexpr static auto ssize_max = (std::numeric_limits<std::streamsize>::max)();
-			constexpr static auto ignore	= std::bind_front(&std::istream::clear, &std::cin, ssize_max, '\n');
+			constexpr static auto ssize_max		   = (std::numeric_limits<std::streamsize>::max)();
+			auto				  clear_and_ignore = std::bind_front(
+				 [](std::istream& is) {
+					 is.clear();
+					 is.ignore(ssize_max, '\n');
+				 },
+				 std::ref(std::cin));
 			static_assert(mode == Mode::Plain, "password mode only available for string input");
 
 			ReturnType value;
@@ -342,13 +348,13 @@ namespace Input
 			{
 				if (std::cin >> value)
 				{
-					ignore();
+					clear_and_ignore();
 
 					return value;
 				}
 
 				std::cin.clear();
-				ignore();
+				clear_and_ignore();
 			}
 		}
 	}
