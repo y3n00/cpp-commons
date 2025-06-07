@@ -28,23 +28,22 @@ class Logger : public Singleton<Logger>
 	constexpr Logger() = default;
 
 	template <typename... Args>
-	constexpr inline void log(LoggerLevel				  level,
+	constexpr inline void log(LoggerLevel level,
 							  const std::source_location& loc,
 							  std::format_string<Args...> fmt,
 							  Args&&... args)
 	{
 		std::scoped_lock lock(mutex_);
 
-		const auto message		 = std::format(fmt, std::forward<Args>(args)...);
-		const auto level_str	 = std::format("[{}]", get_level_string(level));
-		const auto timestamp_str = std::format("{:%T}", std::chrono::system_clock::now());
+		const std::string message = std::format(fmt, std::forward<Args>(args)...);
+		const std::string level_str = std::format("[{}]", get_level_string(level));
+		const std::string timestamp_str = std::format("{:%T}", std::chrono::system_clock::now());
 
-		const auto log_text = std::format("{:<15}{} {}:{}, {}\t{}",
+		const auto log_text = std::format("{:<12}{} {}:{},\t{}",
 										  level_str,
 										  timestamp_str,
 										  loc.file_name(),
 										  loc.line(),
-										  loc.function_name(),
 										  message);
 
 		std::cerr << Output::Text(log_text, get_level_style(level)) << '\n';
@@ -112,15 +111,15 @@ class Logger : public Singleton<Logger>
 };
 
 #ifndef NDEBUG
-	#define LOG_TRACE(fmt, ...) Logger::get_instance().trace(std::source_location::current(), fmt, ##__VA_ARGS__)
-	#define LOG_INFO(fmt, ...) Logger::get_instance().info(std::source_location::current(), fmt, ##__VA_ARGS__)
-	#define LOG_WARN(fmt, ...) Logger::get_instance().warn(std::source_location::current(), fmt, ##__VA_ARGS__)
-	#define LOG_ERROR(fmt, ...) Logger::get_instance().error(std::source_location::current(), fmt, ##__VA_ARGS__)
-	#define LOG_EXCEPTION(fmt, ...) Logger::get_instance().exception(std::source_location::current(), fmt, ##__VA_ARGS__)
+	#define DBG_TRACE(fmt, ...) Logger::get_instance().trace(std::source_location::current(), fmt, ##__VA_ARGS__)
+	#define DBG_INFO(fmt, ...) Logger::get_instance().info(std::source_location::current(), fmt, ##__VA_ARGS__)
+	#define DBG_WARN(fmt, ...) Logger::get_instance().warn(std::source_location::current(), fmt, ##__VA_ARGS__)
+	#define DBG_ERROR(fmt, ...) Logger::get_instance().error(std::source_location::current(), fmt, ##__VA_ARGS__)
+	#define DBG_EXCEPTION(fmt, ...) Logger::get_instance().exception(std::source_location::current(), fmt, ##__VA_ARGS__)
 #else
-	#define LOG_TRACE(fmt, ...)
-	#define LOG_INFO(fmt, ...)
-	#define LOG_WARN(fmt, ...)
-	#define LOG_ERROR(fmt, ...)
-	#define LOG_EXCEPTION(fmt, ...)
+	#define DBG_TRACE(fmt, ...)
+	#define DBG_INFO(fmt, ...)
+	#define DBG_WARN(fmt, ...)
+	#define DBG_ERROR(fmt, ...)
+	#define DBG_EXCEPTION(fmt, ...)
 #endif
