@@ -1,9 +1,9 @@
 ﻿#pragma once
 
-#include <array>
 #include <chrono>
 #include <format>
 #include <iostream>
+#include <map>
 #include <mutex>
 #include <source_location>
 #include <string>
@@ -19,10 +19,25 @@ enum class LoggerLevel : uint8_t
 	Exception,
 	Error,
 };
-
 class Logger : public Singleton<Logger>
 {
 	friend class Singleton<Logger>;
+
+	[[nodiscard]] inline static auto get_level_fmt_data(LoggerLevel level)
+	{
+		using enum LoggerLevel;
+		using enum Output::Style::EStyles;
+
+		static const std::map<LoggerLevel, std::pair<std::string_view, uint64_t>> level_to_fmt = {
+			{Trace, {"TRACE", text_brightgray}},
+			{Info, {"INFO", text_cyan}},
+			{Warning, {"WARNING", text_yellow}},
+			{Exception, {"EXCEPTION", text_magenta}},
+			{Error, {"ERROR", text_red}},
+		};
+
+		return level_to_fmt.at(level);
+	}
 
   public:
 	constexpr Logger() = default;
@@ -35,18 +50,16 @@ class Logger : public Singleton<Logger>
 	{
 		std::scoped_lock lock(mutex_);
 
-		const std::string message = std::format(fmt, std::forward<Args>(args)...);
-		const std::string level_str = std::format("[{}]", get_level_string(level));
-		const std::string timestamp_str = std::format("{:%T}", std::chrono::system_clock::now());
+		const auto [level_str, level_style] = get_level_fmt_data(level);
 
 		const auto log_text = std::format("{:<12}{} {}:{},\t{}",
-										  level_str,
-										  timestamp_str,
+										  std::format("[{}]", level_str),
+										  std::format("{:%T}", std::chrono::current_zone()->to_local(std::chrono::system_clock::now())),
 										  loc.file_name(),
 										  loc.line(),
-										  message);
+										  std::format(fmt, std::forward<Args>(args)...));
 
-		std::cerr << Output::Text(log_text, get_level_style(level)) << '\n';
+		std::cerr << Output::Text(log_text, level_style) << '\n';
 	}
 
 	template <typename... Args>
@@ -79,43 +92,21 @@ class Logger : public Singleton<Logger>
 		log(LoggerLevel::Exception, loc, fmt, std::forward<Args>(args)...);
 	}
 
-  private:
-	[[nodiscard]] constexpr inline static std::string_view get_level_string(LoggerLevel level)
-	{
-		constexpr static auto levelToText = std::to_array<std::string_view>({
-			"TRACE",
-			"INFO",
-			"WARNING",
-			"EXCEPTION",
-			"ERROR",
-		});
-
-		return levelToText[std::to_underlying(level)];
-	}
-
-	[[nodiscard]] constexpr inline static uint64_t get_level_style(LoggerLevel level)
-	{
-		using namespace Output::Style;
-		constexpr static auto levelToColor = std::to_array<uint64_t>({
-			text_brightgray,
-			text_cyan,
-			text_yellow,
-			text_magenta,
-			text_red,
-		});
-
-		return levelToColor[std::to_underlying(level)];
-	}
-
 	std::mutex mutex_;
 };
 
+#define LOG_TRACE(fmt, ...) Logger::get_instance().trace(std::source_location::current(), fmt, ##__VA_ARGS__)
+#define LOG_INFO(fmt, ...) Logger::get_instance().info(std::source_location::current(), fmt, ##__VA_ARGS__)
+#define LOG_WARN(fmt, ...) Logger::get_instance().warn(std::source_location::current(), fmt, ##__VA_ARGS__)
+#define LOG_ERROR(fmt, ...) Logger::get_instance().error(std::source_location::current(), fmt, ##__VA_ARGS__)
+#define LOG_EXCEPTION(fmt, ...) Logger::get_instance().exception(std::source_location::current(), fmt, ##__VA_ARGS__)
+
 #ifndef NDEBUG
-	#define DBG_TRACE(fmt, ...) Logger::get_instance().trace(std::source_location::current(), fmt, ##__VA_ARGS__)
-	#define DBG_INFO(fmt, ...) Logger::get_instance().info(std::source_location::current(), fmt, ##__VA_ARGS__)
-	#define DBG_WARN(fmt, ...) Logger::get_instance().warn(std::source_location::current(), fmt, ##__VA_ARGS__)
-	#define DBG_ERROR(fmt, ...) Logger::get_instance().error(std::source_location::current(), fmt, ##__VA_ARGS__)
-	#define DBG_EXCEPTION(fmt, ...) Logger::get_instance().exception(std::source_location::current(), fmt, ##__VA_ARGS__)
+	#define DBG_TRACE(fmt, ...) LOG_TRACE(fmt, ##__VA_ARGS__)
+	#define DBG_INFO(fmt, ...) LOG_INFO(fmt, ##__VA_ARGS__)
+	#define DBG_WARN(fmt, ...) LOG_WARN(fmt, ##__VA_ARGS__)
+	#define DBG_ERROR(fmt, ...) LOG_ERROR(fmt, ##__VA_ARGS__)
+	#define DBG_EXCEPTION(fmt, ...) LOG_EXCEPTION(fmt, ##__VA_ARGS__)
 #else
 	#define DBG_TRACE(fmt, ...)
 	#define DBG_INFO(fmt, ...)
