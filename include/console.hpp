@@ -246,7 +246,7 @@ namespace Input
 {
 	enum Constants
 	{
-		BACKSPACE = 8,
+		BACKSPACE = '\b',
 		ENTER = '\r'
 	};
 
@@ -258,10 +258,9 @@ namespace Input
 
 	template <typename ReturnType, Mode mode = Mode::Plain, typename Pred = decltype(isgraph)>
 		requires std::is_arithmetic_v<ReturnType> || std::is_same_v<ReturnType, std::string>
-	[[nodiscard]] static ReturnType read(size_t input_length = SIZE_MAX, char secret_char = '*', Pred keys_filter = isgraph)
+	[[nodiscard]] inline static ReturnType read(size_t max_input_length, char secret_char = '*', Pred keys_filter = isgraph)
 	{
-		if constexpr (std::is_same_v<ReturnType, std::string>)
-		{
+		auto read_string = [&]() {
 			std::string buffer;
 
 			while (true)
@@ -286,7 +285,7 @@ namespace Input
 					continue;
 				}
 
-				if (!keys_filter(ch) || buffer.length() == input_length)
+				if (!keys_filter(ch) || buffer.length() == max_input_length)
 				{
 					std::cout << '\a';
 
@@ -298,33 +297,46 @@ namespace Input
 			}
 
 			return buffer;
-		}
-		else
+		};
+
+		if constexpr (std::string input = read_string();
+					  std::is_same_v<ReturnType, std::string>)
 		{
-			if constexpr (mode != Mode::Plain)
-			{
-				return {};
-			}
-
-			constexpr static auto ssize_max = (std::numeric_limits<std::streamsize>::max)();
-			const static auto clear_and_ignore = [](std::istream& is = std::cin) {
-				is.clear();
-				is.ignore(ssize_max, '\n');
-			};
-
-			ReturnType value;
-
-			while (true)
-			{
-				if (std::cin >> value)
-				{
-					clear_and_ignore();
-
-					return value;
-				}
-
-				clear_and_ignore();
-			}
+			return input;
 		}
+		else if constexpr (std::is_same_v<ReturnType, int>)
+		{
+			return std::stoi(input);
+		}
+		else if constexpr (std::is_same_v<ReturnType, long>)
+		{
+			return std::stol(input);
+		}
+		else if constexpr (std::is_same_v<ReturnType, long long>)
+		{
+			return std::stoll(input);
+		}
+		else if constexpr (std::is_same_v<ReturnType, unsigned long>)
+		{
+			return std::stoul(input);
+		}
+		else if constexpr (std::is_same_v<ReturnType, unsigned long long>)
+		{
+			return std::stoull(input);
+		}
+		else if constexpr (std::is_same_v<ReturnType, float>)
+		{
+			return std::stof(input);
+		}
+		else if constexpr (std::is_same_v<ReturnType, double>)
+		{
+			return std::stod(input);
+		}
+		else if constexpr (std::is_same_v<ReturnType, long double>)
+		{
+			return std::stold(input);
+		}
+
+		return {};
 	}
-};
+} // namespace Input

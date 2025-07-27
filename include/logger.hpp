@@ -30,7 +30,6 @@ enum class LoggerLevel : int8_t
 
 namespace _detail
 {
-	using namespace std::chrono;
 	using enum Output::Style::EStyles;
 
 	struct _log_params
@@ -53,14 +52,21 @@ namespace _detail
 		return styles_array.at(static_cast<size_t>(lvl));
 	}
 
-	inline std::string get_current_time()
+	inline auto get_current_time()
 	{
-		return std::format("{:%T}", system_clock::now());
+		static const auto tz = std::chrono::current_zone();
+		
+		return tz->to_local(std::chrono::system_clock::now());
 	}
 
-	inline bool is_same_day(const system_clock::time_point& t1, const system_clock::time_point& t2) noexcept
+	inline std::string fmt_time()
 	{
-		return floor<days>(t1) == floor<days>(t2);
+		return std::format("{:%F}", get_current_time());
+	}
+
+	inline bool is_same_day(const auto& t1, const auto& t2) noexcept
+	{
+		return std::chrono::floor<std::chrono::days>(t1) == std::chrono::floor<std::chrono::days>(t2);
 	}
 } // namespace _detail
 
@@ -80,8 +86,9 @@ class ILogSink
 		m_min_level = level;
 	}
 
+	virtual void log(LoggerLevel, const std::string_view) = 0;
+	
 	virtual ~ILogSink() = default;
-	virtual void log(LoggerLevel, const std::string_view, const std::string_view) = 0;
 };
 
 template <typename T>
@@ -99,7 +106,7 @@ class ConsoleSink : public ILogSink
 		set_min_level(lvl);
 	}
 
-	void log(LoggerLevel level, const std::string_view message, const std::string_view logger_name) override
+	void log(LoggerLevel level, const std::string_view message) override
 	{
 		if (should_log(level))
 		{
@@ -114,48 +121,48 @@ class ConsoleSink : public ILogSink
 
 class FileSink : public ILogSink
 {
+protected:
 	std::ofstream m_log_file;
 	std::filesystem::path m_log_directory;
-	std::chrono::system_clock::time_point m_current_day;
+	std::chrono::local_days m_current_day;
 	mutable std::mutex m_file_mutex;
 
-	void open_new_log_file(const std::chrono::system_clock::time_point& tp)
+	void open_new_log_file(const std::chrono::local_time<std::chrono::system_clock::duration>& time_point)
 	{
-		auto day_tp = std::chrono::floor<std::chrono::days>(tp);
-		const auto file_path = m_log_directory / std::format("log_{:%F}.log", day_tp);
+		const auto file_path = m_log_directory / std::format("{:%F}", time_point) / std::format("log_{:%H_%M_%S}.log", time_point);
+		std::filesystem::create_directories(file_path.parent_path());
 
-		m_log_file.open(file_path, std::ios::app);
+		m_log_file.open(file_path, std::ios::ate);
 
-		if (!m_log_file.is_open())
+		if(!m_log_file.is_open())
 		{
 			throw std::runtime_error("Failed to open log file");
 		}
 
-		m_current_day = day_tp;
+		m_current_day = std::chrono::floor<std::chrono::days>(time_point);
 	}
 
-  public:
+public:
 	explicit FileSink(std::filesystem::path directory, LoggerLevel level = LoggerLevel::trace)
 		: m_log_directory(std::move(directory))
 	{
 		set_min_level(level);
 		std::filesystem::create_directories(m_log_directory);
-		open_new_log_file(std::chrono::system_clock::now());
+		open_new_log_file(_detail::get_current_time());
 	}
 
-	void log(LoggerLevel level, const std::string_view message, const std::string_view name) override
+	void log(LoggerLevel level, const std::string_view message) override
 	{
-		if (!should_log(level))
+		if(!should_log(level))
 		{
 			return;
 		}
 
-		auto now = std::chrono::system_clock::now();
 		std::scoped_lock lock(m_file_mutex);
 
-		if (!_detail::is_same_day(now, m_current_day))
+		if(const auto now = _detail::get_current_time(); !_detail::is_same_day(now, m_current_day))
 		{
-			if (m_log_file.is_open())
+			if(m_log_file.is_open())
 			{
 				m_log_file.close();
 			}
@@ -163,7 +170,7 @@ class FileSink : public ILogSink
 			open_new_log_file(now);
 		}
 
-		if (m_log_file.is_open())
+		if(m_log_file.is_open())
 		{
 			m_log_file << message << std::endl;
 		}
@@ -173,7 +180,7 @@ class FileSink : public ILogSink
 	{
 		std::scoped_lock lock(m_file_mutex);
 
-		if (m_log_file.is_open())
+		if(m_log_file.is_open())
 		{
 			m_log_file.close();
 		}
@@ -184,7 +191,7 @@ class Logger : public Singleton<Logger>
 {
 	friend class Singleton<Logger>;
 
-  private:
+  protected:
 	std::mutex m_sinks_mutex;
 	std::unordered_map<std::string_view, std::unique_ptr<ILogSink>> m_sinks;
 	using iterator_type = decltype(m_sinks)::iterator;
@@ -209,28 +216,29 @@ class Logger : public Singleton<Logger>
 	template <typename... Args>
 	inline void log(LoggerLevel level, const std::source_location& loc, std::format_string<Args...> fmt, Args&&... args)
 	{
-		const auto timestamp = _detail::get_current_time();
 		const auto& [prefix, _] = _detail::get_style_params(level);
 		const std::filesystem::path file_path{ loc.file_name() };
 
 		const auto& message = std::format(
 			"{:<12} {} {}:{},\t{}",
 			std::format("[{}]", prefix),
-			timestamp,
+			_detail::fmt_time(),
 			file_path.filename().string(),
 			loc.line(),
-			std::format(fmt, std::forward<Args>(args)...));
+			std::format(std::forward<std::format_string<Args...>>(fmt), std::forward<Args>(args)...));
 
 		std::scoped_lock lock(m_sinks_mutex);
 
-		for(auto&& [name, sink] : m_sinks)
+		for(auto&& sink : m_sinks | std::views::values)
 		{
-			sink->log(level, message, name);
+			sink->log(level, message);
 		}
 	}
 
 	[[nodiscard]] inline std::optional<iterator_type> find_logger(const std::string_view logger_name)
 	{
+		std::scoped_lock _{ m_sinks_mutex };
+
 		if(auto it_logger = m_sinks.find(logger_name); it_logger != m_sinks.cend())
 		{
 			return it_logger;
@@ -241,6 +249,7 @@ class Logger : public Singleton<Logger>
 
 	inline bool erase_logger(const std::string_view logger_name)
 	{
+		std::scoped_lock _{m_sinks_mutex};
 		const auto it = find_logger(logger_name);
 		const bool it_belongs = it != m_sinks.end();
 
@@ -254,6 +263,7 @@ class Logger : public Singleton<Logger>
 
 	inline bool erase_logger(iterator_type it)
 	{
+		std::scoped_lock _{m_sinks_mutex};
 		const bool it_belongs = it != m_sinks.end();
 
 		if(it_belongs)
