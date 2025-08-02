@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <array>
 #include <atomic>
@@ -55,13 +55,13 @@ namespace _detail
 	inline auto get_current_time()
 	{
 		static const auto tz = std::chrono::current_zone();
-		
+
 		return tz->to_local(std::chrono::system_clock::now());
 	}
 
 	inline std::string fmt_time()
 	{
-		return std::format("{:%F}", get_current_time());
+		return std::format("{:%T}", get_current_time());
 	}
 
 	inline bool is_same_day(const auto& t1, const auto& t2) noexcept
@@ -87,7 +87,7 @@ class ILogSink
 	}
 
 	virtual void log(LoggerLevel, const std::string_view) = 0;
-	
+
 	virtual ~ILogSink() = default;
 };
 
@@ -121,7 +121,7 @@ class ConsoleSink : public ILogSink
 
 class FileSink : public ILogSink
 {
-protected:
+  protected:
 	std::ofstream m_log_file;
 	std::filesystem::path m_log_directory;
 	std::chrono::local_days m_current_day;
@@ -134,7 +134,7 @@ protected:
 
 		m_log_file.open(file_path, std::ios::ate);
 
-		if(!m_log_file.is_open())
+		if (!m_log_file.is_open())
 		{
 			throw std::runtime_error("Failed to open log file");
 		}
@@ -142,7 +142,7 @@ protected:
 		m_current_day = std::chrono::floor<std::chrono::days>(time_point);
 	}
 
-public:
+  public:
 	explicit FileSink(std::filesystem::path directory, LoggerLevel level = LoggerLevel::trace)
 		: m_log_directory(std::move(directory))
 	{
@@ -153,16 +153,16 @@ public:
 
 	void log(LoggerLevel level, const std::string_view message) override
 	{
-		if(!should_log(level))
+		if (!should_log(level))
 		{
 			return;
 		}
 
 		std::scoped_lock lock(m_file_mutex);
 
-		if(const auto now = _detail::get_current_time(); !_detail::is_same_day(now, m_current_day))
+		if (const auto now = _detail::get_current_time(); !_detail::is_same_day(now, m_current_day))
 		{
-			if(m_log_file.is_open())
+			if (m_log_file.is_open())
 			{
 				m_log_file.close();
 			}
@@ -170,7 +170,7 @@ public:
 			open_new_log_file(now);
 		}
 
-		if(m_log_file.is_open())
+		if (m_log_file.is_open())
 		{
 			m_log_file << message << std::endl;
 		}
@@ -180,7 +180,7 @@ public:
 	{
 		std::scoped_lock lock(m_file_mutex);
 
-		if(m_log_file.is_open())
+		if (m_log_file.is_open())
 		{
 			m_log_file.close();
 		}
@@ -205,7 +205,7 @@ class Logger : public Singleton<Logger>
 		auto sink = std::make_unique<Sink_t>(std::forward<Args>(args)...);
 		std::scoped_lock lock(m_sinks_mutex);
 
-		if(auto&& [it, success] = m_sinks.emplace(logger_name, std::move(sink)); success)
+		if (auto&& [it, success] = m_sinks.emplace(logger_name, std::move(sink)); success)
 		{
 			return it;
 		}
@@ -217,7 +217,7 @@ class Logger : public Singleton<Logger>
 	inline void log(LoggerLevel level, const std::source_location& loc, std::format_string<Args...> fmt, Args&&... args)
 	{
 		const auto& [prefix, _] = _detail::get_style_params(level);
-		const std::filesystem::path file_path{ loc.file_name() };
+		const std::filesystem::path file_path{loc.file_name()};
 
 		const auto& message = std::format(
 			"{:<12} {} {}:{},\t{}",
@@ -229,7 +229,7 @@ class Logger : public Singleton<Logger>
 
 		std::scoped_lock lock(m_sinks_mutex);
 
-		for(auto&& sink : m_sinks | std::views::values)
+		for (auto&& sink : m_sinks | std::views::values)
 		{
 			sink->log(level, message);
 		}
@@ -237,9 +237,9 @@ class Logger : public Singleton<Logger>
 
 	[[nodiscard]] inline std::optional<iterator_type> find_logger(const std::string_view logger_name)
 	{
-		std::scoped_lock _{ m_sinks_mutex };
+		std::scoped_lock _{m_sinks_mutex};
 
-		if(auto it_logger = m_sinks.find(logger_name); it_logger != m_sinks.cend())
+		if (auto it_logger = m_sinks.find(logger_name); it_logger != m_sinks.cend())
 		{
 			return it_logger;
 		}
@@ -253,7 +253,7 @@ class Logger : public Singleton<Logger>
 		const auto it = find_logger(logger_name);
 		const bool it_belongs = it != m_sinks.end();
 
-		if(it_belongs)
+		if (it_belongs)
 		{
 			m_sinks.erase(*it);
 		}
@@ -266,7 +266,7 @@ class Logger : public Singleton<Logger>
 		std::scoped_lock _{m_sinks_mutex};
 		const bool it_belongs = it != m_sinks.end();
 
-		if(it_belongs)
+		if (it_belongs)
 		{
 			m_sinks.erase(it);
 		}

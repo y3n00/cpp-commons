@@ -45,35 +45,18 @@ class Console
 	class Platform
 	{
 	  public:
-#ifdef _WIN32
 		inline static HANDLE h_out = GetStdHandle(STD_OUTPUT_HANDLE);
 		inline static DWORD original_mode;
-#else
-		inline static termios original_termios;
-		inline static bool initialized = false;
-#endif
 
 		static void initialize() noexcept
 		{
-#ifdef _WIN32
 			GetConsoleMode(h_out, &original_mode);
 			SetConsoleMode(h_out, original_mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
-#else
-			if (!initialized)
-			{
-				tcgetattr(STDIN_FILENO, &original_termios);
-				initialized = true;
-			}
-#endif
 		}
 
 		static void restore() noexcept
 		{
-#ifdef _WIN32
 			SetConsoleMode(h_out, original_mode);
-#else
-			tcsetattr(STDIN_FILENO, TCSANOW, &original_termios);
-#endif
 		}
 
 		class Size
@@ -81,18 +64,12 @@ class Console
 		  public:
 			static std::pair<int, int> get() noexcept
 			{
-#ifdef _WIN32
 				CONSOLE_SCREEN_BUFFER_INFO csbi;
 				GetConsoleScreenBufferInfo(Platform::h_out, &csbi);
 
 				return std::pair(
 					csbi.srWindow.Right - csbi.srWindow.Left + 1,
 					csbi.srWindow.Bottom - csbi.srWindow.Top + 1);
-#else
-				winsize ws{};
-				ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws);
-				return std::pair(ws.ws_col, ws.ws_row);
-#endif
 			}
 		};
 	};
