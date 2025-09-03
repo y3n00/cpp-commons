@@ -35,7 +35,7 @@ namespace API_Random
 	template <typename T>
 	concept IsStringoid = std::is_convertible_v<T, std::string_view>;
 
-	using StringGenPredicate = std::function<decltype(isalnum)>;
+	using StringGenPredicate = std::function<bool(char)>;
 
 	/**
 	 * @brief Concept that checks if the type is suitable for generating string
@@ -87,8 +87,8 @@ class Random_t
 	template <std::floating_point R>
 	using real_dist = std::uniform_real_distribution<R>;
 
-  private:
-	VARIABLE_TYPE RandomEngine gen{std::random_device{}()};
+private:
+	VARIABLE_TYPE RandomEngine gen{ std::random_device{}() };
 
 	/**
 	 * @brief Get the appropriate distribution for the given numeric type
@@ -101,11 +101,11 @@ class Random_t
 	template <API_Random::Numeric_Type Num_Type>
 	[[nodiscard]] constexpr AUTO_SIGNATURE get_distribution(MIN_LIMIT(Num_Type), MAX_LIMIT(Num_Type))
 	{
-		if constexpr (std::is_floating_point_v<Num_Type>)
+		if constexpr(std::is_floating_point_v<Num_Type>)
 		{
 			return real_dist<Num_Type>{min_val, max_val};
 		}
-		else if constexpr (sizeof(Num_Type) == 1)
+		else if constexpr(sizeof(Num_Type) == 1)
 		{
 			return int_dist<int16_t>{min_val, max_val}; // cant use 1 byte types on msvc
 		}
@@ -115,7 +115,7 @@ class Random_t
 		}
 	}
 
-  public:
+public:
 	using seed_t = std::decay_t<decltype(decltype(gen)::default_seed)>;
 
 	/**
@@ -128,11 +128,11 @@ class Random_t
 		gen.seed(seed);
 	}
 
-	Random_t()						= default;
-	Random_t(Random_t&&)			= default;
+	Random_t() = default;
+	Random_t(Random_t&&) = default;
 	Random_t& operator=(Random_t&&) = default;
 
-	Random_t(const Random_t&)			 = delete;
+	Random_t(const Random_t&) = delete;
 	Random_t& operator=(const Random_t&) = delete;
 
 	~Random_t() = default;
@@ -182,7 +182,7 @@ class Random_t
 	 */
 	[[nodiscard]] AUTO_SIGNATURE chance_probability(double prob) -> bool
 	{
-		return std::bernoulli_distribution{std::clamp<double>(prob, 0, 1)}(gen);
+		return std::bernoulli_distribution{ std::clamp<double>(prob, 0, 1) }(gen);
 	}
 
 	/**
@@ -205,7 +205,7 @@ class Random_t
 	 */
 	[[nodiscard]] AUTO_SIGNATURE get_elem(std::ranges::range auto&& range)
 	{
-		auto	   it		= std::ranges::begin(range);
+		auto it = std::ranges::begin(range);
 		const auto last_idx = std::ranges::distance(range) - 1;
 		std::ranges::advance(it, from_zero_to(last_idx));
 
@@ -225,7 +225,7 @@ class Random_t
 		requires API_Random::Numeric_Type<T>
 	AUTO_SIGNATURE fill_range(R& range, MIN_LIMIT(T), MAX_LIMIT(T)) -> void
 	{
-		std::ranges::generate(range, [&] { return in_range(min_val, max_val); });
+		std::ranges::generate(range, std::bind_front(&Random_t::in_range<T>, this, min_val, max_val));
 	}
 
 	/**
@@ -242,15 +242,17 @@ class Random_t
 		requires API_Random::IsStringoid<std::ranges::range_value_t<R>>
 	AUTO_SIGNATURE fill_range(R& range, Length_Type min_len, Length_Type max_len, Gen&& gen) -> void
 	{
-		if constexpr (std::is_convertible_v<Gen, API_Random::StringGenPredicate>)
+		if constexpr(std::is_convertible_v<Gen, API_Random::StringGenPredicate>)
 		{
-			std::ranges::generate(range, [&, pred = API_Random::StringGenPredicate(std::move(gen))] {
+			std::ranges::generate(range, [&, pred = API_Random::StringGenPredicate(std::forward(gen))]
+			{
 				return get_string_by_pred(in_range(min_len, max_len), pred);
 			});
 		}
 		else
 		{
-			std::ranges::generate(range, [&, view = std::string_view(gen)] {
+			std::ranges::generate(range, [&, view = std::string_view(gen)]
+			{
 				return get_string_from_chars(in_range(min_len, max_len), view);
 			});
 		}
@@ -265,13 +267,13 @@ class Random_t
 	 * @param fill_from The range to fill from
 	 */
 	template <std::ranges::range R1,
-			  std::ranges::range R2,
-			  typename T1 = std::ranges::range_value_t<R1>,
-			  typename T2 = std::ranges::range_value_t<R2>>
+		std::ranges::range R2,
+		typename T1 = std::ranges::range_value_t<R1>,
+		typename T2 = std::ranges::range_value_t<R2>>
 		requires std::convertible_to<T2, T1>
 	AUTO_SIGNATURE fill_range_from(R1& to_fill, R2&& fill_from) -> void
 	{
-		if (not std::ranges::empty(fill_from))
+		if(not std::ranges::empty(fill_from))
 		{
 			std::ranges::generate(to_fill, [&] { return static_cast<T1>(get_elem(fill_from)); });
 		}
@@ -312,7 +314,7 @@ class Random_t
 										   CREATE_LIMIT(Length_Type, max_str_length, max)) -> std::array<T, Count>
 	{
 		std::array<T, Count> arr;
-		fill_range(arr, min_str_length, max_str_length, std::move(gen));
+		fill_range(arr, min_str_length, max_str_length, std::forward(gen));
 
 		return arr;
 	}
@@ -351,7 +353,7 @@ class Random_t
 											CREATE_LIMIT(Length_Type, max_str_length, max)) -> std::vector<T>
 	{
 		std::vector<std::string> vec(size);
-		fill_range(vec, min_str_length, max_str_length, std::move(gen));
+		fill_range(vec, min_str_length, max_str_length, std::forward(gen));
 
 		return vec;
 	}
