@@ -226,7 +226,7 @@ class Logger : public Singleton<Logger>
 			_detail::fmt_time(),
 			file_path.filename().string(),
 			loc.line(),
-			std::format(std::forward(fmt), std::forward(args)...));
+			std::format(std::forward<std::format_string<Args...>>(fmt), std::forward<Args>(args)...));
 
 		std::scoped_lock lock(m_sinks_mutex);
 

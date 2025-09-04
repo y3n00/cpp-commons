@@ -87,8 +87,8 @@ class Random_t
 	template <std::floating_point R>
 	using real_dist = std::uniform_real_distribution<R>;
 
-private:
-	VARIABLE_TYPE RandomEngine rand_engine{ std::random_device{}() };
+  private:
+	VARIABLE_TYPE RandomEngine rand_engine{std::random_device{}()};
 
 	/**
 	 * @brief Get the appropriate distribution for the given numeric type
@@ -101,11 +101,11 @@ private:
 	template <API_Random::Numeric_Type Num_Type>
 	[[nodiscard]] constexpr AUTO_SIGNATURE get_distribution(MIN_LIMIT(Num_Type), MAX_LIMIT(Num_Type))
 	{
-		if constexpr(std::is_floating_point_v<Num_Type>)
+		if constexpr (std::is_floating_point_v<Num_Type>)
 		{
 			return real_dist<Num_Type>{min_val, max_val};
 		}
-		else if constexpr(sizeof(Num_Type) == 1)
+		else if constexpr (sizeof(Num_Type) == 1)
 		{
 			return int_dist<int16_t>{min_val, max_val}; // cant use 1 byte types on msvc
 		}
@@ -115,7 +115,7 @@ private:
 		}
 	}
 
-public:
+  public:
 	using seed_t = std::decay_t<decltype(decltype(rand_engine)::default_seed)>;
 
 	/**
@@ -129,8 +129,8 @@ public:
 	}
 
 	Random_t() = default;
-	Random_t(Random_t&&) noexcept =  default;
-	Random_t& operator=(Random_t&&) noexcept =  default;
+	Random_t(Random_t&&) noexcept = default;
+	Random_t& operator=(Random_t&&) noexcept = default;
 
 	Random_t(const Random_t&) = delete;
 	Random_t& operator=(const Random_t&) = delete;
@@ -182,7 +182,7 @@ public:
 	 */
 	[[nodiscard]] AUTO_SIGNATURE chance_probability(double prob) -> bool
 	{
-		return std::bernoulli_distribution{ std::clamp<double>(prob, 0, 1) }(rand_engine);
+		return std::bernoulli_distribution{std::clamp<double>(prob, 0, 1)}(rand_engine);
 	}
 
 	/**
@@ -203,7 +203,7 @@ public:
 	 * @param range The range from which to select an element
 	 * @return A random element from the range
 	 */
-	[[nodiscard]] AUTO_SIGNATURE get_elem(const std::ranges::range auto& range)
+	[[nodiscard]] AUTO_SIGNATURE get_elem(std::ranges::range auto&& range)
 	{
 		auto it = std::ranges::begin(range);
 		const auto last_idx = std::ranges::distance(range) - 1;
@@ -242,17 +242,15 @@ public:
 		requires API_Random::IsStringoid<std::ranges::range_value_t<R>>
 	AUTO_SIGNATURE fill_range(R& range, Length_Type min_len, Length_Type max_len, Gen&& gen) -> void
 	{
-		if constexpr(std::is_convertible_v<Gen, API_Random::StringGenPredicate>)
+		if constexpr (std::is_convertible_v<Gen, API_Random::StringGenPredicate>)
 		{
-			std::ranges::generate(range, [&, pred = API_Random::StringGenPredicate(std::forward(gen))]
-			{
+			std::ranges::generate(range, [&, pred = API_Random::StringGenPredicate(std::forward(gen))] {
 				return get_string_by_pred(in_range(min_len, max_len), pred);
 			});
 		}
 		else
 		{
-			std::ranges::generate(range, [&, view = std::string_view(gen)]
-			{
+			std::ranges::generate(range, [&, view = std::string_view(gen)] {
 				return get_string_from_chars(in_range(min_len, max_len), view);
 			});
 		}
@@ -267,13 +265,13 @@ public:
 	 * @param fill_from The range to fill from
 	 */
 	template <std::ranges::range R1,
-		std::ranges::range R2,
-		typename T1 = std::ranges::range_value_t<R1>,
-		typename T2 = std::ranges::range_value_t<R2>>
+			  std::ranges::range R2,
+			  typename T1 = std::ranges::range_value_t<R1>,
+			  typename T2 = std::ranges::range_value_t<R2>>
 		requires std::convertible_to<T2, T1>
 	AUTO_SIGNATURE fill_range_from(R1& to_fill, R2&& fill_from) -> void
 	{
-		if(not std::ranges::empty(fill_from))
+		if (not std::ranges::empty(fill_from))
 		{
 			std::ranges::generate(to_fill, [&] { return static_cast<T1>(get_elem(fill_from)); });
 		}
