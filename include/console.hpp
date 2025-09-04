@@ -237,7 +237,7 @@ namespace Input
 		requires std::is_arithmetic_v<ReturnType> || std::is_same_v<ReturnType, std::string>
 	[[nodiscard]] inline static ReturnType read(size_t max_input_length, char secret_char = '*', Pred keys_filter = isgraph)
 	{
-		auto read_string = [&]() {
+		auto read_string = [&max_input_length, &secret_char, &keys_filter]() {
 			std::string buffer;
 
 			while (true)

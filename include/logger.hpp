@@ -14,6 +14,7 @@
 #include <source_location>
 #include <string_view>
 #include <thread>
+#include <utility>
 
 #include "console.hpp"
 #include "singleton.hpp"
@@ -49,7 +50,7 @@ namespace _detail
 			{"ERROR", text_red | style_underline},
 		});
 
-		return styles_array.at(static_cast<size_t>(lvl));
+		return styles_array.at(std::to_underlying(lvl));
 	}
 
 	inline auto get_current_time()
@@ -225,11 +226,11 @@ class Logger : public Singleton<Logger>
 			_detail::fmt_time(),
 			file_path.filename().string(),
 			loc.line(),
-			std::format(std::forward<std::format_string<Args...>>(fmt), std::forward<Args>(args)...));
+			std::format(std::forward(fmt), std::forward(args)...));
 
 		std::scoped_lock lock(m_sinks_mutex);
 
-		for (auto&& sink : m_sinks | std::views::values)
+		for (auto const& sink : m_sinks | std::views::values)
 		{
 			sink->log(level, message);
 		}

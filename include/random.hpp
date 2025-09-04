@@ -88,7 +88,7 @@ class Random_t
 	using real_dist = std::uniform_real_distribution<R>;
 
 private:
-	VARIABLE_TYPE RandomEngine gen{ std::random_device{}() };
+	VARIABLE_TYPE RandomEngine rand_engine{ std::random_device{}() };
 
 	/**
 	 * @brief Get the appropriate distribution for the given numeric type
@@ -116,21 +116,21 @@ private:
 	}
 
 public:
-	using seed_t = std::decay_t<decltype(decltype(gen)::default_seed)>;
+	using seed_t = std::decay_t<decltype(decltype(rand_engine)::default_seed)>;
 
 	/**
 	 * @brief Constructor with a seed
 	 *
 	 * @param seed The seed for the random number generator
 	 */
-	Random_t(seed_t seed)
+	explicit Random_t(seed_t seed)
 	{
-		gen.seed(seed);
+		rand_engine.seed(seed);
 	}
 
 	Random_t() = default;
-	Random_t(Random_t&&) = default;
-	Random_t& operator=(Random_t&&) = default;
+	Random_t(Random_t&&) noexcept =  default;
+	Random_t& operator=(Random_t&&) noexcept =  default;
 
 	Random_t(const Random_t&) = delete;
 	Random_t& operator=(const Random_t&) = delete;
@@ -148,7 +148,7 @@ public:
 	template <API_Random::Numeric_Type Num_Type>
 	[[nodiscard]] AUTO_SIGNATURE in_range(MIN_LIMIT(Num_Type), MAX_LIMIT(Num_Type)) -> Num_Type
 	{
-		return static_cast<Num_Type>(get_distribution(min_val, max_val)(gen));
+		return static_cast<Num_Type>(get_distribution(min_val, max_val)(rand_engine));
 	}
 
 	/**
@@ -182,7 +182,7 @@ public:
 	 */
 	[[nodiscard]] AUTO_SIGNATURE chance_probability(double prob) -> bool
 	{
-		return std::bernoulli_distribution{ std::clamp<double>(prob, 0, 1) }(gen);
+		return std::bernoulli_distribution{ std::clamp<double>(prob, 0, 1) }(rand_engine);
 	}
 
 	/**
@@ -203,7 +203,7 @@ public:
 	 * @param range The range from which to select an element
 	 * @return A random element from the range
 	 */
-	[[nodiscard]] AUTO_SIGNATURE get_elem(std::ranges::range auto&& range)
+	[[nodiscard]] AUTO_SIGNATURE get_elem(const std::ranges::range auto& range)
 	{
 		auto it = std::ranges::begin(range);
 		const auto last_idx = std::ranges::distance(range) - 1;
@@ -353,7 +353,6 @@ public:
 											CREATE_LIMIT(Length_Type, max_str_length, max)) -> std::vector<T>
 	{
 		std::vector<std::string> vec(size);
-		fill_range(vec, min_str_length, max_str_length, std::forward(gen));
 
 		return vec;
 	}
@@ -365,7 +364,7 @@ public:
 	 */
 	AUTO_SIGNATURE shuffle_range(std::ranges::random_access_range auto& range) -> void
 	{
-		std::ranges::shuffle(range, gen);
+		std::ranges::shuffle(range, rand_engine);
 	}
 
 	/**
