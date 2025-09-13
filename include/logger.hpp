@@ -33,15 +33,15 @@ namespace _detail
 {
 	using enum Output::Style::EStyles;
 
-	struct _log_params
+	struct log_params
 	{
 		std::string_view prefix;
 		uint64_t style;
 	};
 
-	inline static constexpr _log_params get_style_params(LoggerLevel lvl)
+	[[nodiscard]] inline static constexpr log_params get_style_params(LoggerLevel lvl)
 	{
-		constexpr auto styles_array = std::to_array<_log_params>({
+		constexpr auto styles_array = std::to_array<log_params>({
 			{"OFF", text_default},
 			{"DEBUG", text_brightgray},
 			{"TRACE", text_white},
@@ -53,19 +53,19 @@ namespace _detail
 		return styles_array.at(std::to_underlying(lvl));
 	}
 
-	inline auto get_current_time()
+	[[nodiscard]] inline auto get_current_time()
 	{
 		static const auto tz = std::chrono::current_zone();
 
 		return tz->to_local(std::chrono::system_clock::now());
 	}
 
-	inline std::string fmt_time()
+	[[nodiscard]] inline std::string fmt_time()
 	{
 		return std::format("{:%T}", get_current_time());
 	}
 
-	inline bool is_same_day(const auto& t1, const auto& t2) noexcept
+	[[nodiscard]] inline bool is_same_day(const auto& t1, const auto& t2) noexcept
 	{
 		return std::chrono::floor<std::chrono::days>(t1) == std::chrono::floor<std::chrono::days>(t2);
 	}
@@ -97,7 +97,7 @@ concept IsLoggerSink = std::is_base_of_v<ILogSink, T>;
 
 class ConsoleSink : public ILogSink
 {
-	mutable std::mutex m_console_mutex;
+	inline static std::mutex m_console_mutex;
 
   public:
 	ConsoleSink() noexcept = default;
@@ -112,7 +112,7 @@ class ConsoleSink : public ILogSink
 		if (should_log(level))
 		{
 			std::scoped_lock lock(m_console_mutex);
-			const auto& [_, styles] = _detail::get_style_params(level);
+			const auto& styles = _detail::get_style_params(level).style;
 			std::cerr << Output::Text(message, styles) << '\n';
 		}
 	}
@@ -147,8 +147,12 @@ class FileSink : public ILogSink
 	explicit FileSink(std::filesystem::path directory, LoggerLevel level = LoggerLevel::trace)
 		: m_log_directory(std::move(directory))
 	{
+		if (std::error_code ec; std::filesystem::create_directories(m_log_directory, ec) || ec)
+		{
+			m_log_directory = std::filesystem::temp_directory_path();
+		}
+
 		set_min_level(level);
-		std::filesystem::create_directories(m_log_directory);
 		open_new_log_file(_detail::get_current_time());
 	}
 
@@ -195,13 +199,13 @@ class Logger : public Singleton<Logger>
   protected:
 	std::mutex m_sinks_mutex;
 	std::unordered_map<std::string_view, std::unique_ptr<ILogSink>> m_sinks;
-	using iterator_type = decltype(m_sinks)::iterator;
+	using sink_iter = decltype(m_sinks)::iterator;
 
   public:
 	Logger() = default;
 
 	template <IsLoggerSink Sink_t, typename... Args>
-	inline std::optional<iterator_type> add_sink(const std::string_view logger_name, Args&&... args)
+	inline std::optional<sink_iter> add_sink(const std::string_view logger_name, Args&& ...args)
 	{
 		auto sink = std::make_unique<Sink_t>(std::forward<Args>(args)...);
 		std::scoped_lock lock(m_sinks_mutex);
@@ -215,9 +219,9 @@ class Logger : public Singleton<Logger>
 	}
 
 	template <typename... Args>
-	inline void log(LoggerLevel level, const std::source_location& loc, std::format_string<Args...> fmt, Args&&... args)
+	inline void log(LoggerLevel level, const std::source_location& loc, std::format_string<Args...> fmt, Args&& ...args)
 	{
-		const auto& [prefix, _] = _detail::get_style_params(level);
+		const auto& prefix = _detail::get_style_params(level).prefix;
 		const std::filesystem::path file_path{loc.file_name()};
 
 		const auto& message = std::format(
@@ -230,13 +234,13 @@ class Logger : public Singleton<Logger>
 
 		std::scoped_lock lock(m_sinks_mutex);
 
-		for (auto const& sink : m_sinks | std::views::values)
+		for (const auto& sink : m_sinks | std::views::values)
 		{
 			sink->log(level, message);
 		}
 	}
 
-	[[nodiscard]] inline std::optional<iterator_type> find_logger(const std::string_view logger_name)
+	[[nodiscard]] inline std::optional<sink_iter> find_logger(const std::string_view logger_name)
 	{
 		std::scoped_lock _{m_sinks_mutex};
 
@@ -252,7 +256,7 @@ class Logger : public Singleton<Logger>
 	{
 		std::scoped_lock _{m_sinks_mutex};
 		const auto it = find_logger(logger_name);
-		const bool it_belongs = it != m_sinks.end();
+		const bool it_belongs = it != m_sinks.cend();
 
 		if (it_belongs)
 		{
@@ -262,10 +266,10 @@ class Logger : public Singleton<Logger>
 		return it_belongs;
 	}
 
-	inline bool erase_logger(iterator_type it)
+	inline bool erase_logger(sink_iter it)
 	{
 		std::scoped_lock _{m_sinks_mutex};
-		const bool it_belongs = it != m_sinks.end();
+		const bool it_belongs = it != m_sinks.cend();
 
 		if (it_belongs)
 		{
