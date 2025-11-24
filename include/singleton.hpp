@@ -9,7 +9,7 @@ public:
     Singleton& operator=(const Singleton&) = delete;
     Singleton& operator=(Singleton&&)      = delete;
 
-    static T& instance()
+    static T& get_instance()
     {
         static T inst;
 		
