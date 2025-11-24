@@ -19,6 +19,11 @@
 #include "console.hpp"
 #include "singleton.hpp"
 
+
+#ifndef LOGGER_USE_SOURCE_LOCATION
+	#define LOGGER_USE_SOURCE_LOCATION 1
+#endif
+
 enum class LoggerLevel : int8_t
 {
 	off,
@@ -205,7 +210,7 @@ class Logger : public Singleton<Logger>
 	Logger() = default;
 
 	template <IsLoggerSink Sink_t, typename... Args>
-	inline std::optional<sink_iter> add_sink(const std::string_view logger_name, Args&& ...args)
+	inline std::optional<sink_iter> add_sink(const std::string_view logger_name, Args&&... args)
 	{
 		auto sink = std::make_unique<Sink_t>(std::forward<Args>(args)...);
 		std::scoped_lock lock(m_sinks_mutex);
@@ -218,8 +223,9 @@ class Logger : public Singleton<Logger>
 		return std::nullopt;
 	}
 
+#if LOGGER_USE_SOURCE_LOCATION
 	template <typename... Args>
-	inline void log(LoggerLevel level, const std::source_location& loc, std::format_string<Args...> fmt, Args&& ...args)
+	inline void log(LoggerLevel level, const std::source_location loc, std::format_string<Args...> fmt, Args&&... args)
 	{
 		const auto& prefix = _detail::get_style_params(level).prefix;
 		const std::filesystem::path file_path{loc.file_name()};
@@ -239,6 +245,26 @@ class Logger : public Singleton<Logger>
 			sink->log(level, message);
 		}
 	}
+#else
+	template <typename... Args>
+	inline void log(LoggerLevel level, std::format_string<Args...> fmt, Args&&... args)
+	{
+		const auto& prefix = _detail::get_style_params(level).prefix;
+
+		const auto& message = std::format(
+			"{:<12} {} {}",
+			std::format("[{}]", prefix),
+			_detail::fmt_time(),
+			std::format(std::forward<std::format_string<Args...>>(fmt), std::forward<Args>(args)...));
+
+		std::scoped_lock lock(m_sinks_mutex);
+
+		for (const auto& sink : m_sinks | std::views::values)
+		{
+			sink->log(level, message);
+		}
+	}
+#endif
 
 	[[nodiscard]] inline std::optional<sink_iter> find_logger(const std::string_view logger_name)
 	{
@@ -285,11 +311,19 @@ class Logger : public Singleton<Logger>
 #define LOGGER_SINK_NAMED(type, name, ...) Logger::get_instance().add_sink<type>(name, __VA_ARGS__)
 #define LOGGER_SINK(type, ...) LOGGER_SINK_NAMED(type, #type, __VA_ARGS__)
 
-#define LOG_TRACE(...) Logger::get_instance().log(LoggerLevel::trace, std::source_location::current(), __VA_ARGS__)
-#define LOG_DEBUG(...) Logger::get_instance().log(LoggerLevel::debug, std::source_location::current(), __VA_ARGS__)
-#define LOG_INFO(...) Logger::get_instance().log(LoggerLevel::info, std::source_location::current(), __VA_ARGS__)
-#define LOG_WARN(...) Logger::get_instance().log(LoggerLevel::warning, std::source_location::current(), __VA_ARGS__)
-#define LOG_ERROR(...) Logger::get_instance().log(LoggerLevel::error, std::source_location::current(), __VA_ARGS__)
+#if LOGGER_USE_SOURCE_LOCATION
+	#define LOG_TRACE(...) Logger::get_instance().log(LoggerLevel::trace, std::source_location::current(), __VA_ARGS__)
+	#define LOG_DEBUG(...) Logger::get_instance().log(LoggerLevel::debug, std::source_location::current(), __VA_ARGS__)
+	#define LOG_INFO(...)  Logger::get_instance().log(LoggerLevel::info,  std::source_location::current(), __VA_ARGS__)
+	#define LOG_WARN(...)  Logger::get_instance().log(LoggerLevel::warning, std::source_location::current(), __VA_ARGS__)
+	#define LOG_ERROR(...) Logger::get_instance().log(LoggerLevel::error, std::source_location::current(), __VA_ARGS__)
+#else
+	#define LOG_TRACE(...) Logger::get_instance().log(LoggerLevel::trace, __VA_ARGS__)
+	#define LOG_DEBUG(...) Logger::get_instance().log(LoggerLevel::debug, __VA_ARGS__)
+	#define LOG_INFO(...)  Logger::get_instance().log(LoggerLevel::info,  __VA_ARGS__)
+	#define LOG_WARN(...)  Logger::get_instance().log(LoggerLevel::warning, __VA_ARGS__)
+	#define LOG_ERROR(...) Logger::get_instance().log(LoggerLevel::error, __VA_ARGS__)
+#endif
 
 #ifdef NDEBUG
 	#define DBG_TRACE(...)
