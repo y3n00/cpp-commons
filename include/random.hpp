@@ -35,7 +35,7 @@ namespace API_Random
 	template <typename T>
 	concept IsStringoid = std::is_convertible_v<T, std::string_view>;
 
-	using StringGenPredicate = std::function<bool(char)>;
+	using StringGenPredicate = std::function<decltype(isalnum)>;
 
 	/**
 	 * @brief Concept that checks if the type is suitable for generating string
