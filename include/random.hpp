@@ -11,7 +11,7 @@
 
 #ifdef RANDOM_STATIC
 	#define AUTO_SIGNATURE inline static auto
-	#define VARIABLE_TYPE static inline thread_local
+	#define VARIABLE_TYPE  static inline thread_local
 #else
 	#define AUTO_SIGNATURE inline auto
 	#define VARIABLE_TYPE
@@ -24,7 +24,7 @@ namespace API_Random
 	 *
 	 * @tparam T The type to check
 	 */
-	template <typename T>
+	template<typename T>
 	concept Numeric_Type = std::is_arithmetic_v<T>;
 
 	/**
@@ -32,7 +32,7 @@ namespace API_Random
 	 *
 	 * @tparam T The type to check
 	 */
-	template <typename T>
+	template<typename T>
 	concept IsStringoid = std::is_convertible_v<T, std::string_view>;
 
 	using StringGenPredicate = std::function<decltype(isalnum)>;
@@ -43,7 +43,7 @@ namespace API_Random
 	 * @note The T should be the range of chars`(string/string_view/const char*, ...)` or predicate `(isalpha, isprint, ...)`
 	 * @tparam T The type to check
 	 */
-	template <typename T>
+	template<typename T>
 	concept StringGeneraionType = IsStringoid<T> || std::is_convertible_v<T, StringGenPredicate>;
 } // namespace API_Random
 
@@ -78,17 +78,17 @@ namespace API_Random
  *
  * @tparam RandomEngine The random number engine type. Defaults to std::minstd_rand.
  */
-template <typename RandomEngine = std::minstd_rand>
+template<typename RandomEngine = std::minstd_rand>
 class Random_t
 {
-	template <std::integral I>
+	template<std::integral I>
 	using int_dist = std::uniform_int_distribution<I>;
 
-	template <std::floating_point R>
+	template<std::floating_point R>
 	using real_dist = std::uniform_real_distribution<R>;
 
   private:
-	VARIABLE_TYPE RandomEngine rand_engine{std::random_device{}()};
+	VARIABLE_TYPE RandomEngine rand_engine { std::random_device {}() };
 
 	/**
 	 * @brief Get the appropriate distribution for the given numeric type
@@ -98,20 +98,20 @@ class Random_t
 	 * @param max_val maximum value for the distribution (inclusive)
 	 * @return A distribution object for the specified numeric type
 	 */
-	template <API_Random::Numeric_Type Num_Type>
+	template<API_Random::Numeric_Type Num_Type>
 	[[nodiscard]] constexpr AUTO_SIGNATURE get_distribution(MIN_LIMIT(Num_Type), MAX_LIMIT(Num_Type))
 	{
 		if constexpr (std::is_floating_point_v<Num_Type>)
 		{
-			return real_dist<Num_Type>{min_val, max_val};
+			return real_dist<Num_Type> { min_val, max_val };
 		}
 		else if constexpr (sizeof(Num_Type) == 1)
 		{
-			return int_dist<int16_t>{min_val, max_val}; // cant use 1 byte types on msvc
+			return int_dist<int16_t> { min_val, max_val }; // cant use 1 byte types on msvc
 		}
 		else
 		{
-			return int_dist<Num_Type>{min_val, max_val};
+			return int_dist<Num_Type> { min_val, max_val };
 		}
 	}
 
@@ -145,7 +145,7 @@ class Random_t
 	 * @param max_val The maximum value (inclusive)
 	 * @return A random number of type Num_Type in selected range
 	 */
-	template <API_Random::Numeric_Type Num_Type>
+	template<API_Random::Numeric_Type Num_Type>
 	[[nodiscard]] AUTO_SIGNATURE in_range(MIN_LIMIT(Num_Type), MAX_LIMIT(Num_Type)) -> Num_Type
 	{
 		return static_cast<Num_Type>(get_distribution(min_val, max_val)(rand_engine));
@@ -158,7 +158,7 @@ class Random_t
 	 * @param max_val The maximum value (inclusive)
 	 * @return A random number of type Num_Type
 	 */
-	template <API_Random::Numeric_Type Num_Type>
+	template<API_Random::Numeric_Type Num_Type>
 	[[nodiscard]] AUTO_SIGNATURE from_zero_to(MAX_LIMIT(Num_Type)) -> Num_Type
 	{
 		return in_range<Num_Type>({}, max_val);
@@ -182,7 +182,7 @@ class Random_t
 	 */
 	[[nodiscard]] AUTO_SIGNATURE chance_probability(double prob) -> bool
 	{
-		return std::bernoulli_distribution{std::clamp<double>(prob, 0, 1)}(rand_engine);
+		return std::bernoulli_distribution { std::clamp<double>(prob, 0, 1) }(rand_engine);
 	}
 
 	/**
@@ -221,7 +221,7 @@ class Random_t
 	 * @param min_val The minimum value (inclusive)
 	 * @param max_val The maximum value (inclusive)
 	 */
-	template <std::ranges::range R, typename T = std::ranges::range_value_t<R>>
+	template<std::ranges::range R, typename T = std::ranges::range_value_t<R>>
 		requires API_Random::Numeric_Type<T>
 	AUTO_SIGNATURE fill_range(R& range, MIN_LIMIT(T), MAX_LIMIT(T)) -> void
 	{
@@ -238,7 +238,7 @@ class Random_t
 	 * @param max_len The maximum length of the strings
 	 * @param gen The chars or predicate for string generation
 	 */
-	template <std::ranges::range R, API_Random::StringGeneraionType Gen, std::unsigned_integral Length_Type = uint8_t>
+	template<std::ranges::range R, API_Random::StringGeneraionType Gen, std::unsigned_integral Length_Type = uint8_t>
 		requires API_Random::IsStringoid<std::ranges::range_value_t<R>>
 	AUTO_SIGNATURE fill_range(R& range, Length_Type min_len, Length_Type max_len, Gen&& gen) -> void
 	{
@@ -273,7 +273,9 @@ class Random_t
 	{
 		if (not std::ranges::empty(fill_from))
 		{
-			std::ranges::generate(to_fill, [&] { return static_cast<T1>(get_elem(fill_from)); });
+			std::ranges::generate(to_fill, [&] {
+				return static_cast<T1>(get_elem(fill_from));
+			});
 		}
 	}
 
@@ -286,7 +288,7 @@ class Random_t
 	 * @param max_val The maximum value (inclusive)
 	 * @return An array of random numbers
 	 */
-	template <API_Random::Numeric_Type T, size_t Count>
+	template<API_Random::Numeric_Type T, size_t Count>
 	[[nodiscard]] AUTO_SIGNATURE get_array(MIN_LIMIT(T), MAX_LIMIT(T)) -> std::array<T, Count>
 	{
 		std::array<T, Count> arr;
@@ -306,10 +308,10 @@ class Random_t
 	 * @param max_str_length The maximum length of the strings
 	 * @return An array of random strings
 	 */
-	template <API_Random::IsStringoid T, size_t Count, std::unsigned_integral Length_Type = uint8_t>
+	template<API_Random::IsStringoid T, size_t Count, std::unsigned_integral Length_Type = uint8_t>
 	[[nodiscard]] AUTO_SIGNATURE get_array(API_Random::StringGeneraionType auto&& gen,
-										   CREATE_LIMIT(Length_Type, min_str_length, min),
-										   CREATE_LIMIT(Length_Type, max_str_length, max)) -> std::array<T, Count>
+		CREATE_LIMIT(Length_Type, min_str_length, min),
+		CREATE_LIMIT(Length_Type, max_str_length, max)) -> std::array<T, Count>
 	{
 		std::array<T, Count> arr;
 		fill_range(arr, min_str_length, max_str_length, std::forward(gen));
@@ -326,7 +328,7 @@ class Random_t
 	 * @param max_val The maximum value (inclusive)
 	 * @return A vector of random numbers
 	 */
-	template <API_Random::Numeric_Type T>
+	template<API_Random::Numeric_Type T>
 	[[nodiscard]] AUTO_SIGNATURE get_vector(size_t size, MIN_LIMIT(T), MAX_LIMIT(T)) -> std::vector<T>
 	{
 		std::vector<T> vec(size);

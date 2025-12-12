@@ -19,7 +19,6 @@
 #include "console.hpp"
 #include "singleton.hpp"
 
-
 #ifndef LOGGER_USE_SOURCE_LOCATION
 	#define LOGGER_USE_SOURCE_LOCATION 1
 #endif
@@ -47,12 +46,12 @@ namespace _detail
 	[[nodiscard]] inline static constexpr log_params get_style_params(LoggerLevel lvl)
 	{
 		constexpr auto styles_array = std::to_array<log_params>({
-			{"OFF", text_default},
-			{"DEBUG", text_brightgray},
-			{"TRACE", text_white},
-			{"INFO", text_cyan},
-			{"WARNING", text_yellow},
-			{"ERROR", text_red | style_underline},
+			{ "OFF", text_default },
+			{ "DEBUG", text_brightgray },
+			{ "TRACE", text_white },
+			{ "INFO", text_cyan },
+			{ "WARNING", text_yellow },
+			{ "ERROR", text_red | style_underline },
 		});
 
 		return styles_array.at(std::to_underlying(lvl));
@@ -79,7 +78,7 @@ namespace _detail
 class ILogSink
 {
   protected:
-	std::atomic<LoggerLevel> m_min_level{LoggerLevel::off};
+	std::atomic<LoggerLevel> m_min_level { LoggerLevel::off };
 
 	[[nodiscard]] inline bool should_log(LoggerLevel level) const noexcept
 	{
@@ -97,7 +96,7 @@ class ILogSink
 	virtual ~ILogSink() = default;
 };
 
-template <typename T>
+template<typename T>
 concept IsLoggerSink = std::is_base_of_v<ILogSink, T>;
 
 class ConsoleSink : public ILogSink
@@ -209,7 +208,7 @@ class Logger : public Singleton<Logger>
   public:
 	Logger() = default;
 
-	template <IsLoggerSink Sink_t, typename... Args>
+	template<IsLoggerSink Sink_t, typename... Args>
 	inline std::optional<sink_iter> add_sink(const std::string_view logger_name, Args&&... args)
 	{
 		auto sink = std::make_unique<Sink_t>(std::forward<Args>(args)...);
@@ -224,18 +223,17 @@ class Logger : public Singleton<Logger>
 	}
 
 #if LOGGER_USE_SOURCE_LOCATION
-	template <typename... Args>
+	template<typename... Args>
 	inline void log(LoggerLevel level, const std::source_location loc, std::format_string<Args...> fmt, Args&&... args)
 	{
 		const auto& prefix = _detail::get_style_params(level).prefix;
-		const std::filesystem::path file_path{loc.file_name()};
+		const std::filesystem::path file_path { loc.file_name() };
 
-		const auto& message = std::format(
-			"{:<12} {} {}:{},\t{}",
+		const auto& message = std::format("{:<12} {} {}:{},\t{}",
 			std::format("[{}]", prefix),
 			_detail::fmt_time(),
 			file_path.filename().string(),
-			loc.line(),
+			loc.function_name(),
 			std::format(std::forward<std::format_string<Args...>>(fmt), std::forward<Args>(args)...));
 
 		std::scoped_lock lock(m_sinks_mutex);
@@ -246,16 +244,13 @@ class Logger : public Singleton<Logger>
 		}
 	}
 #else
-	template <typename... Args>
+	template<typename... Args>
 	inline void log(LoggerLevel level, std::format_string<Args...> fmt, Args&&... args)
 	{
 		const auto& prefix = _detail::get_style_params(level).prefix;
 
-		const auto& message = std::format(
-			"{:<12} {} {}",
-			std::format("[{}]", prefix),
-			_detail::fmt_time(),
-			std::format(std::forward<std::format_string<Args...>>(fmt), std::forward<Args>(args)...));
+		const auto& message =
+			std::format("{:<12} {} {}", std::format("[{}]", prefix), _detail::fmt_time(), std::format(std::forward<std::format_string<Args...>>(fmt), std::forward<Args>(args)...));
 
 		std::scoped_lock lock(m_sinks_mutex);
 
@@ -268,7 +263,7 @@ class Logger : public Singleton<Logger>
 
 	[[nodiscard]] inline std::optional<sink_iter> find_logger(const std::string_view logger_name)
 	{
-		std::scoped_lock _{m_sinks_mutex};
+		std::scoped_lock _ { m_sinks_mutex };
 
 		if (auto it_logger = m_sinks.find(logger_name); it_logger != m_sinks.cend())
 		{
@@ -280,7 +275,7 @@ class Logger : public Singleton<Logger>
 
 	inline bool erase_logger(const std::string_view logger_name)
 	{
-		std::scoped_lock _{m_sinks_mutex};
+		std::scoped_lock _ { m_sinks_mutex };
 		const auto it = find_logger(logger_name);
 		const bool it_belongs = it != m_sinks.cend();
 
@@ -294,7 +289,7 @@ class Logger : public Singleton<Logger>
 
 	inline bool erase_logger(sink_iter it)
 	{
-		std::scoped_lock _{m_sinks_mutex};
+		std::scoped_lock _ { m_sinks_mutex };
 		const bool it_belongs = it != m_sinks.cend();
 
 		if (it_belongs)
@@ -308,19 +303,19 @@ class Logger : public Singleton<Logger>
 	~Logger() noexcept = default;
 };
 
-#define LOGGER_SINK_NAMED(type, name, ...) Logger::get_instance().add_sink<type>(name, __VA_ARGS__)
-#define LOGGER_SINK(type, ...) LOGGER_SINK_NAMED(type, #type, __VA_ARGS__)
+#define LOGGER_SINK_NAMED(type, name, ...) Logger::get_instance().add_sink<type>(name __VA_OPT__(, ) __VA_ARGS__)
+#define LOGGER_SINK(type, ...)			   LOGGER_SINK_NAMED(type, #type, __VA_ARGS__)
 
 #if LOGGER_USE_SOURCE_LOCATION
 	#define LOG_TRACE(...) Logger::get_instance().log(LoggerLevel::trace, std::source_location::current(), __VA_ARGS__)
 	#define LOG_DEBUG(...) Logger::get_instance().log(LoggerLevel::debug, std::source_location::current(), __VA_ARGS__)
-	#define LOG_INFO(...)  Logger::get_instance().log(LoggerLevel::info,  std::source_location::current(), __VA_ARGS__)
+	#define LOG_INFO(...)  Logger::get_instance().log(LoggerLevel::info, std::source_location::current(), __VA_ARGS__)
 	#define LOG_WARN(...)  Logger::get_instance().log(LoggerLevel::warning, std::source_location::current(), __VA_ARGS__)
 	#define LOG_ERROR(...) Logger::get_instance().log(LoggerLevel::error, std::source_location::current(), __VA_ARGS__)
 #else
 	#define LOG_TRACE(...) Logger::get_instance().log(LoggerLevel::trace, __VA_ARGS__)
 	#define LOG_DEBUG(...) Logger::get_instance().log(LoggerLevel::debug, __VA_ARGS__)
-	#define LOG_INFO(...)  Logger::get_instance().log(LoggerLevel::info,  __VA_ARGS__)
+	#define LOG_INFO(...)  Logger::get_instance().log(LoggerLevel::info, __VA_ARGS__)
 	#define LOG_WARN(...)  Logger::get_instance().log(LoggerLevel::warning, __VA_ARGS__)
 	#define LOG_ERROR(...) Logger::get_instance().log(LoggerLevel::error, __VA_ARGS__)
 #endif
@@ -334,7 +329,7 @@ class Logger : public Singleton<Logger>
 #else
 	#define DBG_TRACE(...) LOG_TRACE(__VA_ARGS__)
 	#define DBG_DEBUG(...) LOG_DEBUG(__VA_ARGS__)
-	#define DBG_INFO(...) LOG_INFO(__VA_ARGS__)
-	#define DBG_WARN(...) LOG_WARN(__VA_ARGS__)
+	#define DBG_INFO(...)  LOG_INFO(__VA_ARGS__)
+	#define DBG_WARN(...)  LOG_WARN(__VA_ARGS__)
 	#define DBG_ERROR(...) LOG_ERROR(__VA_ARGS__)
 #endif
