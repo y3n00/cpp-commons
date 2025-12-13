@@ -226,6 +226,13 @@ class Logger : public Singleton<Logger>
 	template<typename... Args>
 	inline void log(LoggerLevel level, const std::source_location loc, std::format_string<Args...> fmt, Args&&... args)
 	{
+		const auto sinks = m_sinks | std::views::values;
+
+		if (sinks.empty())
+		{
+			return;
+		}
+
 		const auto& prefix = _detail::get_style_params(level).prefix;
 		const std::filesystem::path file_path { loc.file_name() };
 
@@ -247,6 +254,13 @@ class Logger : public Singleton<Logger>
 	template<typename... Args>
 	inline void log(LoggerLevel level, std::format_string<Args...> fmt, Args&&... args)
 	{
+		const auto sinks = m_sinks | std::views::values;
+
+		if (sinks.empty())
+		{
+			return;
+		}
+
 		const auto& prefix = _detail::get_style_params(level).prefix;
 
 		const auto& message =
