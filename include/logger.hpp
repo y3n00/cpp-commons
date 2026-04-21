@@ -7,14 +7,16 @@
 #include <format>
 #include <fstream>
 #include <iostream>
-#include <list>
-#include <map>
 #include <memory>
 #include <mutex>
 #include <source_location>
+#include <string>
 #include <string_view>
+#include <syncstream>
 #include <thread>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include "console.hpp"
 #include "singleton.hpp"
@@ -77,7 +79,7 @@ namespace _detail
 
 class ILogSink
 {
-  protected:
+protected:
 	std::atomic<LoggerLevel> m_min_level { LoggerLevel::off };
 
 	[[nodiscard]] inline bool should_log(LoggerLevel level) const noexcept
@@ -85,7 +87,7 @@ class ILogSink
 		return level >= m_min_level;
 	}
 
-  public:
+public:
 	void set_min_level(LoggerLevel level) noexcept
 	{
 		m_min_level = level;
@@ -101,9 +103,7 @@ concept IsLoggerSink = std::is_base_of_v<ILogSink, T>;
 
 class ConsoleSink : public ILogSink
 {
-	inline static std::mutex m_console_mutex;
-
-  public:
+public:
 	ConsoleSink() noexcept = default;
 
 	explicit ConsoleSink(LoggerLevel lvl) noexcept
@@ -115,9 +115,8 @@ class ConsoleSink : public ILogSink
 	{
 		if (should_log(level))
 		{
-			std::scoped_lock lock(m_console_mutex);
-			const auto& styles = _detail::get_style_params(level).style;
-			std::cerr << Output::Text(message, styles) << '\n';
+			const auto text = Output::Text(message, _detail::get_style_params(level).style);
+			std::osyncstream(std::cerr) << text << '\n';
 		}
 	}
 
@@ -126,13 +125,13 @@ class ConsoleSink : public ILogSink
 
 class FileSink : public ILogSink
 {
-  protected:
+protected:
 	std::ofstream m_log_file;
 	std::filesystem::path m_log_directory;
 	std::chrono::local_days m_current_day;
 	mutable std::mutex m_file_mutex;
 
-	void open_new_log_file(const std::chrono::local_time<std::chrono::system_clock::duration>& time_point)
+	void open_new_log_file(std::chrono::local_time<std::chrono::system_clock::duration> time_point)
 	{
 		const auto file_path = m_log_directory / std::format("{:%F}", time_point) / std::format("log_{:%H_%M_%S}.log", time_point);
 		std::filesystem::create_directories(file_path.parent_path());
@@ -147,11 +146,14 @@ class FileSink : public ILogSink
 		m_current_day = std::chrono::floor<std::chrono::days>(time_point);
 	}
 
-  public:
+public:
 	explicit FileSink(std::filesystem::path directory, LoggerLevel level = LoggerLevel::trace)
 		: m_log_directory(std::move(directory))
 	{
-		if (std::error_code ec; std::filesystem::create_directories(m_log_directory, ec) || ec)
+		std::error_code ec;
+		std::filesystem::create_directories(m_log_directory, ec);
+
+		if (ec)
 		{
 			m_log_directory = std::filesystem::temp_directory_path();
 		}
@@ -200,35 +202,49 @@ class Logger : public Singleton<Logger>
 {
 	friend class Singleton<Logger>;
 
-  protected:
+protected:
 	std::mutex m_sinks_mutex;
-	std::unordered_map<std::string_view, std::unique_ptr<ILogSink>> m_sinks;
-	using sink_iter = decltype(m_sinks)::iterator;
+	std::unordered_map<std::string, std::shared_ptr<ILogSink>> m_sinks;
 
-  public:
+private:
+	[[nodiscard]] std::vector<std::shared_ptr<ILogSink>> get_active_sinks()
+	{
+		std::scoped_lock lock(m_sinks_mutex);
+
+		if (m_sinks.empty())
+		{
+			return {};
+		}
+
+		std::vector<std::shared_ptr<ILogSink>> active_sinks;
+		active_sinks.reserve(m_sinks.size());
+
+		for (const auto& [key, sink] : m_sinks)
+		{
+			active_sinks.push_back(sink);
+		}
+
+		return active_sinks;
+	}
+
+public:
 	Logger() = default;
 
 	template<IsLoggerSink Sink_t, typename... Args>
-	inline std::optional<sink_iter> add_sink(const std::string_view logger_name, Args&&... args)
+	inline bool add_sink(const std::string_view logger_name, Args&&... args)
 	{
-		auto sink = std::make_unique<Sink_t>(std::forward<Args>(args)...);
 		std::scoped_lock lock(m_sinks_mutex);
+		auto&& [it, success] = m_sinks.emplace(std::string{logger_name}, std::make_shared<Sink_t>(std::forward<Args>(args)...));
 
-		if (auto&& [it, success] = m_sinks.emplace(logger_name, std::move(sink)); success)
-		{
-			return it;
-		}
-
-		return std::nullopt;
+		return success;
 	}
 
 #if LOGGER_USE_SOURCE_LOCATION
 	template<typename... Args>
 	inline void log(LoggerLevel level, const std::source_location loc, std::format_string<Args...> fmt, Args&&... args)
 	{
-		const auto sinks = m_sinks | std::views::values;
-
-		if (sinks.empty())
+		const auto active_sinks = get_active_sinks();
+		if (active_sinks.empty())
 		{
 			return;
 		}
@@ -243,9 +259,7 @@ class Logger : public Singleton<Logger>
 			loc.function_name(),
 			std::format(std::forward<std::format_string<Args...>>(fmt), std::forward<Args>(args)...));
 
-		std::scoped_lock lock(m_sinks_mutex);
-
-		for (const auto& sink : m_sinks | std::views::values)
+		for (const auto& sink : active_sinks)
 		{
 			sink->log(level, message);
 		}
@@ -254,84 +268,58 @@ class Logger : public Singleton<Logger>
 	template<typename... Args>
 	inline void log(LoggerLevel level, std::format_string<Args...> fmt, Args&&... args)
 	{
-		const auto sinks = m_sinks | std::views::values;
-
-		if (sinks.empty())
+		const auto active_sinks = get_active_sinks();
+		if (active_sinks.empty())
 		{
 			return;
 		}
 
 		const auto& prefix = _detail::get_style_params(level).prefix;
 
-		const auto& message =
-			std::format("{:<12} {} {}", std::format("[{}]", prefix), _detail::fmt_time(), std::format(std::forward<std::format_string<Args...>>(fmt), std::forward<Args>(args)...));
+		const auto& message = std::format("{:<12} {} {}",
+			std::format("[{}]", prefix),
+			_detail::fmt_time(),
+			std::format(std::forward<std::format_string<Args...>>(fmt), std::forward<Args>(args)...));
 
-		std::scoped_lock lock(m_sinks_mutex);
-
-		for (const auto& sink : m_sinks | std::views::values)
+		for (const auto& sink : active_sinks)
 		{
 			sink->log(level, message);
 		}
 	}
 #endif
 
-	[[nodiscard]] inline std::optional<sink_iter> find_logger(const std::string_view logger_name)
-	{
-		std::scoped_lock _ { m_sinks_mutex };
-
-		if (auto it_logger = m_sinks.find(logger_name); it_logger != m_sinks.cend())
-		{
-			return it_logger;
-		}
-
-		return std::nullopt;
-	}
-
 	inline bool erase_logger(const std::string_view logger_name)
 	{
-		std::scoped_lock _ { m_sinks_mutex };
-		const auto it = find_logger(logger_name);
-		const bool it_belongs = it != m_sinks.cend();
+		std::scoped_lock lock(m_sinks_mutex);
 
-		if (it_belongs)
+		if (const auto it_logger = m_sinks.find(std::string{logger_name}); it_logger != m_sinks.end())
 		{
-			m_sinks.erase(*it);
+			m_sinks.erase(it_logger);
+
+			return true;
 		}
 
-		return it_belongs;
-	}
-
-	inline bool erase_logger(sink_iter it)
-	{
-		std::scoped_lock _ { m_sinks_mutex };
-		const bool it_belongs = it != m_sinks.cend();
-
-		if (it_belongs)
-		{
-			m_sinks.erase(it);
-		}
-
-		return it_belongs;
+		return false;
 	}
 
 	~Logger() noexcept = default;
 };
 
-#define LOGGER_SINK_NAMED(type, name, ...) Logger::get_instance().add_sink<type>(name __VA_OPT__(, ) __VA_ARGS__)
-#define LOGGER_SINK(type, ...)			   LOGGER_SINK_NAMED(type, #type, __VA_ARGS__)
+#define LOGGER_SINK_NAMED(type, name, ...) (::Logger::get_instance().add_sink<type>(name, ##__VA_ARGS__))
+#define LOGGER_SINK(type, ...)             (::Logger::get_instance().add_sink<type>(#type, ##__VA_ARGS__))
 
 #if LOGGER_USE_SOURCE_LOCATION
 	#define LOG_TRACE(...) Logger::get_instance().log(LoggerLevel::trace, std::source_location::current(), __VA_ARGS__)
 	#define LOG_DEBUG(...) Logger::get_instance().log(LoggerLevel::debug, std::source_location::current(), __VA_ARGS__)
-	#define LOG_INFO(...)  Logger::get_instance().log(LoggerLevel::info, std::source_location::current(), __VA_ARGS__)
+	#define LOG_INFO(...)  Logger::get_instance().log(LoggerLevel::info,  std::source_location::current(), __VA_ARGS__)
 	#define LOG_WARN(...)  Logger::get_instance().log(LoggerLevel::warning, std::source_location::current(), __VA_ARGS__)
-	#define LOG_ERROR(...) Logger::get_instance().log(LoggerLevel::error, std::source_location::current(), __VA_ARGS__)
+	#define LOG_ERROR(...) Logger::get_instance().log(LoggerLevel::error,  std::source_location::current(), __VA_ARGS__)
 #else
 	#define LOG_TRACE(...) Logger::get_instance().log(LoggerLevel::trace, __VA_ARGS__)
 	#define LOG_DEBUG(...) Logger::get_instance().log(LoggerLevel::debug, __VA_ARGS__)
-	#define LOG_INFO(...)  Logger::get_instance().log(LoggerLevel::info, __VA_ARGS__)
+	#define LOG_INFO(...)  Logger::get_instance().log(LoggerLevel::info,  __VA_ARGS__)
 	#define LOG_WARN(...)  Logger::get_instance().log(LoggerLevel::warning, __VA_ARGS__)
-	#define LOG_ERROR(...) Logger::get_instance().log(LoggerLevel::error, __VA_ARGS__)
+	#define LOG_ERROR(...) Logger::get_instance().log(LoggerLevel::error,  __VA_ARGS__)
 #endif
 
 #ifdef NDEBUG

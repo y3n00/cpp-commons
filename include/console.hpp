@@ -2,25 +2,22 @@
 
 #include <array>
 #include <cctype>
+#include <charconv>
 #include <concepts>
 #include <format>
 #include <fstream>
 #include <functional>
 #include <iostream>
 #include <limits>
+#include <optional>
 #include <ranges>
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 
-#ifdef _WIN32
-	#include <conio.h>
-	#include <windows.h>
-#else
-	#include <sys/ioctl.h>
-	#include <termios.h>
-	#include <unistd.h>
-#endif
+#include <conio.h>
+#include <windows.h>
 
 namespace Output
 {
@@ -30,7 +27,6 @@ namespace Output
 class Console
 {
 	friend class Output::Text;
-	friend struct ConsoleManager;
 
   private:
 	struct Constants
@@ -42,58 +38,42 @@ class Console
 		static constexpr std::string_view RESET = "\033[0m";
 	};
 
-	class Platform
-	{
-	  public:
-		inline static HANDLE h_out = GetStdHandle(STD_OUTPUT_HANDLE);
-		inline static DWORD original_mode;
-
-		static void initialize() noexcept
-		{
-			GetConsoleMode(h_out, &original_mode);
-			SetConsoleMode(h_out, original_mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
-		}
-
-		static void restore() noexcept
-		{
-			SetConsoleMode(h_out, original_mode);
-		}
-
-		class Size
-		{
-		  public:
-			static std::pair<int, int> get() noexcept
-			{
-				CONSOLE_SCREEN_BUFFER_INFO csbi;
-				GetConsoleScreenBufferInfo(Platform::h_out, &csbi);
-
-				return std::pair(
-					csbi.srWindow.Right - csbi.srWindow.Left + 1,
-					csbi.srWindow.Bottom - csbi.srWindow.Top + 1);
-			}
-		};
-	};
-
   public:
-	static std::pair<int, int> get_terminal_size() noexcept
+	Console(): h_out { GetStdHandle(STD_OUTPUT_HANDLE) }
 	{
-		return Platform::Size::get();
+		DWORD mode = 0;
+		GetConsoleMode(h_out, &mode);
+		SetConsoleMode(h_out, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING | ENABLE_PROCESSED_OUTPUT);
 	}
 
-	static void clear() noexcept
+	[[nodiscard]] std::pair<int, int> get_terminal_size() const noexcept
+	{
+		CONSOLE_SCREEN_BUFFER_INFO csbi {};
+		GetConsoleScreenBufferInfo(h_out, &csbi);
+
+		const int width = csbi.srWindow.Right - csbi.srWindow.Left + 1;
+		const int height = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
+
+		return { width, height };
+	}
+
+	void clear() const noexcept
 	{
 		std::cout << Constants::CLEAR_ALL;
 	}
 
-	static void set_cursor(int row, int col) noexcept
+	void set_cursor_pos(int row, int col) const noexcept
 	{
-		std::cout << std::format("{}{};{}H", Console::Constants::CSI, row, col);
+		std::cout << std::format("{}{};{}H", Constants::CSI, row, col);
 	}
 
-	static void cursor_visibility(bool visible) noexcept
+	void set_cursor_visibility(bool visible) const noexcept
 	{
 		std::cout << (visible ? Constants::CURSOR_SHOW : Constants::CURSOR_HIDE);
 	}
+
+  private:
+	HANDLE h_out = nullptr;
 };
 
 namespace Output
@@ -110,6 +90,7 @@ namespace Output
 			style_inverse = 1ULL << 5,
 			style_hidden = 1ULL << 6,
 			style_strikethrough = 1ULL << 7,
+
 			text_black = 1ULL << 8,
 			text_red = 1ULL << 9,
 			text_green = 1ULL << 10,
@@ -126,6 +107,7 @@ namespace Output
 			text_lightcyan = 1ULL << 21,
 			text_white = 1ULL << 22,
 			text_default = 1ULL << 23,
+
 			background_black = 1ULL << 24,
 			background_red = 1ULL << 25,
 			background_green = 1ULL << 26,
@@ -152,15 +134,13 @@ namespace Output
 		std::string content;
 		uint64_t flags = 0;
 
-		static constexpr std::array<int, 64> ansi_map = {
-			1, 2, 3, 4, 5, 7, 8, 9, // styles
-
-			30, 31, 32, 33, 34, 35, 36, 37, // text_black - text_gray
-			90, 91, 92, 94, 95, 96, 97, 39, // text_brightgray - text_default
-
-			40, 41, 42, 43, 44, 45, 46, 47,				// background_black - background_gray
-			100, 101, 102, 103, 104, 105, 106, 107, 49, // background_brightgray - background_default
-		};
+		static constexpr auto ansi_map = std::to_array<uint8_t>({
+			1, 2, 3, 4, 5, 7, 8, 9, 					// styles
+			30, 31, 32, 33, 34, 35, 36, 37, 			// text colors
+			90, 91, 92, 94, 95, 96, 97, 39,				// bright text colors
+			40, 41, 42, 43, 44, 45, 46, 47,				// background colors
+			100, 101, 102, 103, 104, 105, 106, 107, 49	// bright background colors
+		});
 
 		[[nodiscard]] std::string build() const
 		{
@@ -169,22 +149,17 @@ namespace Output
 				return content;
 			}
 
-			const auto codes = std::views::iota(0, 64) |
-							   std::views::filter([&](int i) { return (flags & (1ULL << i)); }) |
-							   std::views::transform([&map = ansi_map](int i) { return std::to_string(map[i]); }) |
-							   std::views::join_with(';') |
-							   std::ranges::to<std::string>();
+			const auto codes = std::views::iota(0, std::numeric_limits<uint64_t>::digits)
+							 | std::views::filter([&](int i) { return (flags & (1ULL << i)) != 0; })
+							 | std::views::transform([](int i) { return std::to_string(ansi_map[i]); })
+							 | std::views::join_with(';')
+							 | std::ranges::to<std::string>();
 
 			return std::format("{}{}m{}{}", Console::Constants::CSI, codes, content, Console::Constants::RESET);
 		}
 
 	  public:
-		Text() = default;
-
-		explicit Text(std::string_view str, uint64_t style = 0)
-			: content(str), flags(style)
-		{
-		}
+		Text(std::string_view str, uint64_t style = 0): content(str), flags(style) {}
 
 		Text& operator=(std::string_view str) noexcept
 		{
@@ -203,117 +178,119 @@ namespace Output
 		Text& remove_style(uint64_t style) noexcept
 		{
 			flags &= ~style;
-
+			
 			return *this;
+		}
+
+		[[nodiscard]] std::string styled() const
+		{
+			return build();
+		}
+
+		[[nodiscard]] std::string raw() const
+		{
+			return content;
 		}
 
 		friend std::ostream& operator<<(std::ostream& os, const Text& text)
 		{
 			if (dynamic_cast<std::ofstream*>(&os))
 			{
-				return os << text.content;
+				return os << text.raw();
 			}
 
-			return os << text.build();
+			return os << text.styled();
 		}
 	};
 } // namespace Output
 
-namespace Input
+class Input
 {
-	enum Constants
+	enum Constants : uint8_t
 	{
 		BACKSPACE = '\b',
 		ENTER = '\r'
 	};
 
-	enum class Mode
+  public:
+	enum class Mode : bool
 	{
 		Plain,
 		Password
 	};
 
-	template <typename ReturnType, Mode mode = Mode::Plain, typename Pred = decltype(isgraph)>
-		requires std::is_arithmetic_v<ReturnType> || std::is_same_v<ReturnType, std::string>
-	[[nodiscard]] inline static ReturnType read(size_t max_input_length, char secret_char = '*', Pred keys_filter = isgraph)
+  private:
+	// Core input logic – shared by both string and arithmetic overloads
+	[[nodiscard]] static std::string read_string_impl(size_t max_input_length, std::function<bool(char)> keys_filter, Mode mode, char secret_char)
 	{
-		auto read_string = [&max_input_length, &secret_char, &keys_filter]() {
-			std::string buffer;
+		std::string buffer;
 
-			while (true)
+		while (true)
+		{
+			const char ch = _getch();
+
+			if (ch == Constants::ENTER)
 			{
-				const char ch = _getch();
+				std::cout << '\n';
 
-				if (ch == Constants::ENTER)
-				{
-					std::cout << '\n';
-
-					break;
-				}
-
-				if (ch == Constants::BACKSPACE)
-				{
-					if (!buffer.empty())
-					{
-						buffer.pop_back();
-						std::cout << "\b \b";
-					}
-
-					continue;
-				}
-
-				if (!keys_filter(ch) || buffer.length() == max_input_length)
-				{
-					std::cout << '\a';
-
-					continue;
-				}
-
-				buffer.push_back(ch);
-				std::cout << (mode == Mode::Password ? secret_char : ch);
+				break;
 			}
 
-			return buffer;
-		};
+			if (ch == Constants::BACKSPACE)
+			{
+				if (!buffer.empty())
+				{
+					buffer.pop_back();
+					std::cout << "\b \b";
+				}
 
-		if constexpr (std::string input = read_string();
-					  std::is_same_v<ReturnType, std::string>)
-		{
-			return input;
-		}
-		else if constexpr (std::is_same_v<ReturnType, int>)
-		{
-			return std::stoi(input);
-		}
-		else if constexpr (std::is_same_v<ReturnType, long>)
-		{
-			return std::stol(input);
-		}
-		else if constexpr (std::is_same_v<ReturnType, long long>)
-		{
-			return std::stoll(input);
-		}
-		else if constexpr (std::is_same_v<ReturnType, unsigned long>)
-		{
-			return std::stoul(input);
-		}
-		else if constexpr (std::is_same_v<ReturnType, unsigned long long>)
-		{
-			return std::stoull(input);
-		}
-		else if constexpr (std::is_same_v<ReturnType, float>)
-		{
-			return std::stof(input);
-		}
-		else if constexpr (std::is_same_v<ReturnType, double>)
-		{
-			return std::stod(input);
-		}
-		else if constexpr (std::is_same_v<ReturnType, long double>)
-		{
-			return std::stold(input);
+				continue;
+			}
+
+			if (!keys_filter(ch) || buffer.length() == max_input_length)
+			{
+				std::cout << '\a';
+
+				continue;
+			}
+
+			buffer.push_back(ch);
+			std::cout << (mode == Mode::Password ? secret_char : ch);
 		}
 
-		return {};
+		return buffer;
 	}
-} // namespace Input
+
+  public:
+	[[nodiscard]] inline static std::string read_string(
+		size_t max_input_length, Mode mode = Mode::Plain,
+		std::function<bool(char)> keys_filter =
+			[](char c) {
+				return std::isgraph(static_cast<unsigned char>(c)) != 0;
+			},
+		char secret_char = '*')
+	{
+		return read_string_impl(max_input_length, std::move(keys_filter), mode, secret_char);
+	}
+
+	template<typename ReturnType>
+		requires std::is_arithmetic_v<ReturnType>
+	[[nodiscard]] inline static std::optional<ReturnType> read(
+		size_t max_input_length = std::numeric_limits<ReturnType>::digits10 + 2, Mode mode = Mode::Plain,
+		std::function<bool(char)> keys_filter =
+			[](char c) {
+				return std::isgraph(static_cast<unsigned char>(c)) != 0;
+			},
+		char secret_char = '*')
+	{
+		ReturnType val {};
+		const std::string input = read_string_impl(max_input_length, std::move(keys_filter), mode, secret_char);
+
+		if (auto [ptr, ec] = std::from_chars(input.data(), input.data() + input.size(), val); ec == std::errc())
+		{
+			return val;
+		}
+
+		return std::nullopt;
+	}
+};
