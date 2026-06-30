@@ -225,7 +225,7 @@ class Random_t
 		requires API_Random::Numeric_Type<T>
 	AUTO_SIGNATURE fill_range(R& range, MIN_LIMIT(T), MAX_LIMIT(T)) -> void
 	{
-		std::ranges::generate(range, std::bind_front(&Random_t::in_range<T>, this, min_val, max_val));
+		std::ranges::generate(range, [&] { return in_range(min_val, max_val); });
 	}
 
 	/**
